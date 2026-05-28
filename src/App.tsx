@@ -1,22 +1,56 @@
 import React, { useState, useEffect, useMemo } from "react";
 
-// Убрали несуществующие .png картинки. Теперь интерфейс стабильно и красиво работает через эмодзи-иконки.
-const PARTIES = [
-  { code: "ER",   name: "Единая Россия", color: "#1e40af", emoji: "🐻", leader: "Дмитрий Медведев", descr: "Консервативная партия власти. Приоритеты: стабильность, порядок, суверенитет." },
-  { code: "KPRF", name: "КПРФ", color: "#dc2626", emoji: "☭", leader: "Геннадий Зюганов", descr: "Левая оппозиция. За национализацию, социальное равенство и советские стандарты." },
-  { code: "LDPR", name: "ЛДПР", color: "#ea580c", emoji: "🦅", leader: "Леонид Слуцкий", descr: "Национал-популизм. Жёсткая внешняя политика, поддержка армии и ограничение миграции." },
-  { code: "NL",   name: "Новые люди", color: "#0d9488", emoji: "🌿", leader: "Алексей Нечаев", descr: "Либеральный центр. Поддержка бизнеса, обновление элит и цифровизация." },
-  { code: "SR",   name: "Справедливая Россия", color: "#7c3aed", emoji: "⚖️", leader: "Сергей Миронов", descr: "Социал-демократия. Справедливое распределение благ и патриотизм." },
-  { code: "YAB",  name: "Яблоко", color: "#16a34a", emoji: "🍏", leader: "Николай Рыбаков", descr: "Либеральная оппозиция. Права человека, европейский путь и свобода слова." },
-  { code: "RPPS", name: "Партия Пенсионеров", color: "#9a3412", emoji: "🧓", leader: "Владимир Ворожцов", descr: "Социальный патернализм. Защита интересов старшего поколения и качественная медицина." },
-  { code: "KR",   name: "Коммунисты России", color: "#991b1b", emoji: "🚩", leader: "Сергей Малинкович", descr: "Радикальные левые. Возврат к плановой экономике и идеям Ленина." },
-  { code: "ZEL",  name: "РЭП Зелёные", color: "#22c55e", emoji: "🌱", leader: "Андрей Нагибин", descr: "Экология. Зелёные технологии и жесткая защита окружающей среды." },
-  { code: "ROD",  name: "Партия Родина", color: "#475569", emoji: "⚔️", leader: "Алексей Журавлёв", descr: "Национал-консерватизм. Военная мощь и жёсткий государственный суверенитет." },
-  { code: "PPD",  name: "Партия прямой демократии", color: "#0284c7", emoji: "📱", leader: "Олег Артамонов", descr: "Технократия. Цифровое управление, электронное голосование и блокчейн-демократия." },
-  { code: "GP",   name: "Гражданская Платформа", color: "#d97706", emoji: "💼", leader: "Рифат Шайхутдинов", descr: "Бизнес-консерватизм. Экономическая свобода предпринимательства при лояльности государству." }
+interface Party {
+  code: string;
+  name: string;
+  color: string;
+  logo: string;
+  emoji: string;
+  leader: string;
+  descr: string;
+}
+
+interface Section {
+  id: string;
+  label: string;
+}
+
+interface Question {
+  n: number;
+  sec: string;
+  text: string;
+  detail: string;
+}
+
+interface Archetype {
+  name: string;
+  desc: string;
+  party: string;
+}
+
+interface Axis {
+  label: string;
+  opposite: string;
+  qs: number[];
+  score?: number;
+}
+
+const PARTIES: Party[] = [
+  { code: "ER",   name: "Единая Россия", color: "#1e40af", logo: "image_cbe060.png", emoji: "🐻", leader: "Дмитрий Медведев", descr: "Консервативная партия власти. Приоритеты: стабильность, порядок, суверенитет." },
+  { code: "KPRF", name: "КПРФ", color: "#dc2626", logo: "image_cbe32b.jpg", emoji: "☭", leader: "Геннадий Зюганов", descr: "Левая оппозиция. За национализацию, социальное равенство и советские стандарты." },
+  { code: "LDPR", name: "ЛДПР", color: "#eab308", logo: "image_cbe363.png", emoji: "🦅", leader: "Леонид Слуцкий", descr: "Национал-популизм. Жёсткая внешняя политика, поддержка армии и ограничение миграции." },
+  { code: "NL",   name: "Новые люди", color: "#0d9488", logo: "image_cbeae9.jpg", emoji: "🌿", leader: "Алексей Нечаев", descr: "Либеральный центр. Поддержка бизнеса, обновление элит и цифровизация." },
+  { code: "SR",   name: "Справедливая Россия", color: "#7c3aed", logo: "image_cbeac7.jpg", emoji: "⚖️", leader: "Сергей Миронов", descr: "Социал-демократия. Справедливое распределение благ и патриотизм." },
+  { code: "YAB",  name: "Яблоко", color: "#16a34a", logo: "image_cc4505.png", emoji: "🍏", leader: "Николай Рыбаков", descr: "Либеральная оппозиция. Права человека, европейский путь и свобода слова." },
+  { code: "RPPS", name: "Партия Пенсионеров", color: "#9a3412", logo: "image_cbeb67.png", emoji: "🧓", leader: "Владимир Ворожцов", descr: "Социальный патернализм. Защита интересов старшего поколения и качественная медицина." },
+  { code: "KR",   name: "Коммунисты России", color: "#b91c1c", logo: "image_cbeb88.jpg", emoji: "🚩", leader: "Сергей Малинкович", descr: "Радикальные левые. Возврат к плановой экономике и идеям Ленина." },
+  { code: "ZEL",  name: "РЭП Зелёные", color: "#22c55e", logo: "image_cc44e2.png", emoji: "🌱", leader: "Андрей Нагибин", descr: "Экология. Зелёные технологии и жесткая защита окружающей среды." },
+  { code: "ROD",  name: "Партия Родина", color: "#475569", logo: "image_cbeb07.jpg", emoji: "⚔️", leader: "Алексей Журавлёв", descr: "Национал-консерватизм. Военная мощь и жёсткий государственный суверенитет." },
+  { code: "PPD",  name: "Партия прямой демократии", color: "#0284c7", logo: "image_cc4523.jpg", emoji: "📱", leader: "Олег Артамонов", descr: "Технократия. Цифровое управление, электронное голосование и блокчейн-демократия." },
+  { code: "GP",   name: "Гражданская Платформа", color: "#d97706", logo: "image_cbeb24.png", emoji: "💼", leader: "Рифат Шайхутдинов", descr: "Бизнес-консерватизм. Экономическая свобода предпринимательства при лояльности государству." }
 ];
 
-const SECTIONS = [
+const SECTIONS: Section[] = [
   { id: "I",    label: "Государство и власть" },
   { id: "II",   label: "Экономика" },
   { id: "III",  label: "Социальная политика" },
@@ -29,7 +63,7 @@ const SECTIONS = [
   { id: "X",    label: "Личное мировоззрение" },
 ];
 
-const MATRIX = {
+const MATRIX: Record<number, number[]> = {
   1:  [5,4,5,2,4,1, 4,4,4,5,2,4], 2:  [2,5,3,4,4,5, 3,4,3,2,5,4], 3:  [2,3,2,4,3,5, 4,2,4,2,5,4],
   4:  [5,4,5,2,4,1, 4,5,3,5,2,4], 5:  [2,4,2,5,3,5, 3,2,3,1,4,3], 6:  [4,2,4,1,3,1, 3,5,3,5,2,4],
   7:  [5,2,4,3,2,1, 4,2,4,5,5,4], 8:  [2,3,2,4,3,5, 3,4,3,2,4,3], 9:  [3,5,4,4,5,4, 5,5,5,4,5,5],
@@ -66,7 +100,7 @@ const MATRIX = {
   100:[2,2,1,5,3,5, 2,1,3,1,4,2],
 };
 
-const ALL_QUESTIONS = [
+const ALL_QUESTIONS: Question[] = [
   { n:1,  sec:"I",  text:"Президенту нужно дать больше полномочий.", detail:"Баланс исполнительной власти. ЕР поддерживает сильную президентскую вертикаль, оппозиция считает её избыточной." },
   { n:2,  sec:"I",  text:"Парламент в России слишком слабый.", detail:"Роль Государственной Думы и реальное влияние народных представителей на государственную политику." },
   { n:3,  sec:"I",  text:"Губернаторов нужно избирать максимально независимо.", detail:"Федерализм против централизованного управления. Прямые выборы без жесткого муниципального фильтра." },
@@ -118,7 +152,7 @@ const ALL_QUESTIONS = [
   { n:49, sec:"V", text:"Россия должна развивать собственные цифровые платформы.", detail:"Отечественные операционные системы, поисковики, процессоры и ИТ-сервисы." },
   { n:50, sec:"V", text:"Искусственный интеллект должен регулироваться государством.", detail:"Лицензирование и контроль за обучением и применением ИИ-систем." },
   { n:51, sec:"VI", text:"Государство должно поддерживать традиционные религии.", detail:"Роль конфессий (православие, ислам) в поддержании духовно-нравственной стабильности." },
-  { n:52, sec:"VI", text:"ЛГБТ-пропаганда должна быть запрещена.", detail:"Законодательный запрет на публичную демонстрацию нетрадиционных сексуальных отношений." },
+  { n:52, sec:"VI", text:"ЛГБТ-пропаганда должна быть запрещена.", detail:"Законодательный запрет на публичную демонстрацию нетрадиционных сексуаческих отношений." },
   { n:53, sec:"VI", text:"Русская культура должна активно поддерживаться.", detail:"Государственные субсидии отечественным фильмам, литературе и театрам с патриотической повесткой." },
   { n:54, sec:"VI", text:"Западные культурные влияния представляют угрозу.", detail:"Противодействие вестернизации и чуждым российскому обществу ценностей." },
   { n:55, sec:"VI", text:"Церковь не должна влиять на политику.", detail:"Принципиально светский характер государства и невмешательство духовенства в госуправление." },
@@ -143,7 +177,7 @@ const ALL_QUESTIONS = [
   { n:74, sec:"VIII", text:"Граждане должны иметь право на чистую среду.", detail:"Борьба с незаконными свалками, мусоросжигательными заводами и вредными выбросами." },
   { n:75, sec:"VIII", text:"Климатическая повестка — инструмент давления.", detail:"Отношение к зеленому переходу как к попытке Запада ограничить промышленный суверенитет РФ." },
   { n:76, sec:"VIII", text:"Государство должно инвестировать в освоение Арктики.", detail:"Развитие Северного морского пути и арктического шельфа." },
-  { n:77, sec:"VIII", text:"Технологический суверенитет важнее открытого рынка.", detail:"Приоритет разработки собственных чипов и программного обеспечения любой ценой." },
+  { n:77, sec:"VIII", text:"Технологический суверенитет важнее открытого рынка технологий.", detail:"Приоритет разработки собственных чипов и программного обеспечения любой ценой." },
   { n:78, sec:"VIII", text:"Нужно поддерживать экологически ответственный бизнес.", detail:"Предоставление налоговых льгот и стимулов для предприятий, внедряющих очистные системы." },
   { n:79, sec:"VIII", text:"Россия должна развивать свою космическую программу.", detail:"Финансирование запусков к Луне, строительство отечественной орбитальной станции." },
   { n:80, sec:"VIII", text:"Цифровая экономика — приоритет развития.", detail:"Поддержка ИТ-сектора, венчурных фондов и стартапов на государственном уровне." },
@@ -171,9 +205,15 @@ const ALL_QUESTIONS = [
 
 const SHORT_INDICES = [1, 2, 11, 15, 17, 21, 24, 31, 35, 41, 47, 51, 55, 61, 62, 71, 81, 91, 93, 95];
 
-const SCALE_LABELS = { 1: "Против", 2: "Скорее нет", 3: "Нейтрально", 4: "Скорее да", 5: "Согласен" };
+const SCALE_LABELS: Record<number, string> = { 
+  1: "Против", 
+  2: "Скорее нет", 
+  3: "Нейтрально", 
+  4: "Скорее да", 
+  5: "Согласен" 
+};
 
-const ARCHETYPES = [
+const ARCHETYPES: Archetype[] = [
   { name: "Государственник-традиционалист", desc: "Приоритет — сильное государство, традиционные ценности, порядок и социальная поддержка в рамках государственного суверенитета.", party: "ER" },
   { name: "Советский социалист", desc: "Выступает за сильное социальное государство, национализацию стратегических отраслей и возвращение советских стандартов справедливости.", party: "KPRF" },
   { name: "Национал-популист", desc: "Жёсткая внешняя политика, акцент на национальной идентичности, ограничении миграции и сильной армии.", party: "LDPR" },
@@ -188,16 +228,16 @@ const ARCHETYPES = [
   { name: "Консервативный либерал", desc: "Правоцентристская позиция: экономические свободы для бизнеса при сохранении лояльности национальным интересам государства.", party: "GP" }
 ];
 
-const AXES = [
+const AXES: Axis[] = [
   { label: "Государственник", opposite: "Либерал",         qs: [1,4,6,7,33,36,37,41,42,43,46,54,60,91,97] },
   { label: "Социалист",       opposite: "Рыночник",        qs: [11,12,15,16,18,21,22,23,27,28,29,30,93,95,99] },
   { label: "Традиционалист",  opposite: "Прогрессист",     qs: [25,51,52,53,57,58,83,85,86,88,89] },
   { label: "Изоляционист",    opposite: "Глобалист",       qs: [5,20,61,62,63,64,66,67,69,70,75,77] },
 ];
 
-function calcScores(answers, weights) {
-  const totals = {}; 
-  const counts = {};
+function calcScores(answers: Record<number, number>, weights: Record<string, number>): Record<string, number> {
+  const totals: Record<string, number> = {}; 
+  const counts: Record<string, number> = {};
   const pKeys = ["ER","KPRF","LDPR","NL","SR","YAB","RPPS","KR","ZEL","ROD","PPD","GP"];
   
   pKeys.forEach(k => { 
@@ -207,8 +247,9 @@ function calcScores(answers, weights) {
   
   Object.entries(answers).forEach(([qn, val]) => {
     const q = parseInt(qn);
-    const sec = ALL_QUESTIONS.find(x => x.n === q)?.sec;
-    const w = weights[sec] || 1;
+    const questionData = ALL_QUESTIONS.find(x => x.n === q);
+    const sec = questionData ? questionData.sec : "I";
+    const w = weights[sec] !== undefined ? weights[sec] : 1;
     const row = MATRIX[q];
     if (!row) return;
     pKeys.forEach((p, i) => {
@@ -218,23 +259,23 @@ function calcScores(answers, weights) {
     });
   });
   
-  const res = {}; 
+  const res: Record<string, number> = {}; 
   pKeys.forEach(p => { 
     res[p] = counts[p] > 0 ? Math.round((totals[p] / counts[p]) * 100) : 0; 
   });
   return res;
 }
 
-function calcAxes(answers) {
+function calcAxes(answers: Record<number, number>): Axis[] {
   return AXES.map(ax => {
-    const vals = ax.qs.map(q => answers[q]).filter(v => v != null);
+    const vals = ax.qs.map(q => answers[q]).filter(v => v !== undefined);
     if (!vals.length) return { ...ax, score: 50 };
     const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
     return { ...ax, score: Math.round(((avg - 1) / 4) * 100) };
   });
 }
 
-function getArchetype(scores) {
+function getArchetype(scores: Record<string, number>): Archetype {
   if (!scores || Object.keys(scores).length === 0) return ARCHETYPES[0];
   const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
   const topParty = sorted[0][0];
@@ -306,25 +347,38 @@ const css = `
   .party-item { background: rgba(255, 255, 255, 0.02); padding: 16px; border-radius: 16px; border: 1px solid var(--border); }
   .party-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 14px; font-weight: 600; }
   
-  /* Эмодзи значки партий - ДОБАВЛЕН CSS КЛАСС КОТОРОГО НЕ ХВАТАЛО */
-  .party-emoji-badge {
-    width: 38px;
-    height: 38px;
-    background: #1e293b; 
-    border-radius: 8px;
+  /* Контейнер для отображения логотипов */
+  .party-logo-container {
+    width: 44px;
+    height: 44px;
+    background: #e2e8f0; /* Светло-серая подложка для максимального контраста прозрачных логотипов */
+    border-radius: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 20px;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
     flex-shrink: 0;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    padding: 3px;
+    overflow: hidden;
   }
-  .party-emoji-badge.large {
-    width: 60px;
-    height: 60px;
-    font-size: 32px;
-    border-radius: 14px;
+  .party-logo-container.large {
+    width: 68px;
+    height: 68px;
+    border-radius: 16px;
+    padding: 5px;
+  }
+  .party-logo-img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    display: block;
+  }
+  
+  /* Текст на тёмном фоне */
+  .dark-contrast-text {
+    color: #ffffff !important;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
   }
 
   .p-bar-bg { height: 10px; background: rgba(0, 0, 0, 0.4); border-radius: 5px; overflow: hidden; }
@@ -367,26 +421,45 @@ const css = `
   }
 `;
 
-// Упрощенный стабильный компонент логотипа (теперь только эмодзи, чтобы не было битых картинок)
-function PartyLogo({ party, size = "small" }) {
-  const emojiClass = size === "large" ? "party-emoji-badge large" : "party-emoji-badge";
+interface PartyLogoProps {
+  party: Party;
+  size?: "small" | "large";
+}
+
+function PartyLogo({ party, size = "small" }: PartyLogoProps) {
+  const [error, setError] = useState(false);
+  const containerClass = size === "large" ? "party-logo-container large" : "party-logo-container";
+
+  if (error || !party.logo) {
+    return (
+      <div className={containerClass} style={{ background: "#1e293b", fontSize: size === "large" ? "32px" : "20px" }}>
+        {party.emoji}
+      </div>
+    );
+  }
+
   return (
-    <div className={emojiClass}>
-      {party.emoji}
+    <div className={containerClass}>
+      <img 
+        className="party-logo-img" 
+        src={party.logo} 
+        alt={party.name} 
+        onError={() => setError(true)}
+      />
     </div>
   );
 }
 
 export default function App() {
-  const [screen, setScreen] = useState("home"); 
-  const [mode, setMode] = useState("short"); 
-  const [answers, setAnswers] = useState({});
-  const [weights, setWeights] = useState({});
-  const [idx, setIdx] = useState(0);
-  const [showDetail, setShowDetail] = useState(false);
-  const [tab, setTab] = useState("parties"); 
-  const [toast, setToast] = useState("");
-  const [confirmModal, setConfirmModal] = useState({ show: false, nextScreen: "" });
+  const [screen, setScreen] = useState<string>("home"); 
+  const [mode, setMode] = useState<"short" | "full">("short"); 
+  const [answers, setAnswers] = useState<Record<number, number>>({});
+  const [weights, setWeights] = useState<Record<string, number>>({});
+  const [idx, setIdx] = useState<number>(0);
+  const [showDetail, setShowDetail] = useState<boolean>(false);
+  const [tab, setTab] = useState<string>("parties"); 
+  const [toast, setToast] = useState<string>("");
+  const [confirmModal, setConfirmModal] = useState<{ show: boolean; nextScreen: string }>({ show: false, nextScreen: "" });
 
   const qs = useMemo(() => {
     return mode === "short" 
@@ -413,9 +486,9 @@ export default function App() {
     }
   };
 
-  const adjustW = (id, delta) => {
+  const adjustW = (id: string, delta: number) => {
     setWeights(p => {
-      const v = p[id] || 1;
+      const v = p[id] !== undefined ? p[id] : 1;
       const nextVal = parseFloat((v + delta).toFixed(1));
       if (nextVal < 0.5 || nextVal > 3) return p;
       return { ...p, [id]: nextVal };
@@ -423,7 +496,6 @@ export default function App() {
   };
 
   const handleRestart = (force = false) => {
-    // ИСПРАВЛЕНИЕ ЛОГИКИ: Не показываем модальное предупреждение, если мы уже на экране результатов!
     if (!force && Object.keys(answers).length > 0 && screen === "quiz") {
       setConfirmModal({ show: true, nextScreen: "home" });
     } else {
@@ -436,7 +508,7 @@ export default function App() {
     }
   };
 
-  const startQuiz = (quizMode) => {
+  const startQuiz = (quizMode: "short" | "full") => {
     setMode(quizMode);
     setAnswers({});
     setWeights({});
@@ -445,23 +517,25 @@ export default function App() {
     setScreen("quiz");
   };
 
-  const triggerToast = (msg) => {
+  const triggerToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(""), 3000);
   };
 
-  // ИСПРАВЛЕННАЯ ФУНКЦИЯ ШЕРИНГА: Безопасно копирует текст в любом окружении
   const handleShare = async () => {
-    const leader = Object.entries(scores).sort((a,b)=>b[1]-a[1])[0];
+    const scoresEntries = Object.entries(scores) as [string, number][];
+    const leader = scoresEntries.sort((a, b) => b[1] - a[1])[0];
     const leaderParty = PARTIES.find(p => p.code === leader[0]);
-    const text = `Мой идеологический тип: ${arch.name}\nМаксимальное совпадение: ${leaderParty.emoji} ${leaderParty.name} (${leader[1]}%)\nПройти тест политического компаса!`;
+    const leaderPartyEmoji = leaderParty?.emoji ?? "🏛️";
+    const leaderPartyName = leaderParty?.name ?? "Партия";
+    
+    const text = `Мой идеологический тип: ${arch.name}\nМаксимальное совпадение: ${leaderPartyEmoji} ${leaderPartyName} (${leader[1]}%)\nПройти тест политического компаса!`;
     
     try {
       if (navigator.clipboard && window.isSecureContext) {
         await navigator.clipboard.writeText(text);
         triggerToast("Результаты скопированы в буфер обмена!");
       } else {
-        // Fallback если браузер старый или запущен без HTTPS (как часто бывает в онлайн песочницах)
         const textArea = document.createElement("textarea");
         textArea.value = text;
         textArea.style.position = "fixed"; 
@@ -590,10 +664,9 @@ export default function App() {
 
         <div className="nav">
           <button className="btn btn-back" onClick={() => idx > 0 ? setIdx(idx - 1) : handleRestart(false)}>Назад</button>
-          <button className="btn btn-next" disabled={!answers[current.n]} onClick={handleNext}>Дальше →</button>
+          <button className="btn btn-next" disabled={answers[current.n] === undefined} onClick={handleNext}>Дальше →</button>
         </div>
 
-        {/* Confirmation Modal overlay block for Quiz exit */}
         {confirmModal.show && (
           <div className="modal-overlay">
             <div className="modal-box">
@@ -616,7 +689,7 @@ export default function App() {
       
       <div className="glass-card" style={{ borderBottom: "4px solid #6366f1" }}>
         <div className="arch-label">Ваш политический архетип</div>
-        <h1 className="arch-name">{arch.name}</h1>
+        <h1 className="arch-name dark-contrast-text">{arch.name}</h1>
         <p className="arch-desc">{arch.desc}</p>
       </div>
 
@@ -627,14 +700,15 @@ export default function App() {
 
       {tab === "parties" && (
         <div className="party-list">
-          {Object.entries(scores).sort((a,b) => b[1] - a[1]).map(([code, val]) => {
+          {(Object.entries(scores) as [string, number][]).sort((a, b) => b[1] - a[1]).map(([code, val]) => {
             const p = PARTIES.find(x => x.code === code);
+            if (!p) return null;
             return (
               <div key={code} className="party-item" style={{ borderLeft: `4px solid ${p.color}` }}>
                 <div className="party-head">
                   <span style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                     <PartyLogo party={p} size="small" />
-                    <span style={{ color: "#ffffff", fontWeight: "600" }}>{p.name}</span>
+                    <span className="dark-contrast-text" style={{ fontWeight: "600" }}>{p.name}</span>
                   </span>
                   <span style={{ color: p.color, fontWeight: "700" }}>{val}%</span>
                 </div>
@@ -659,17 +733,18 @@ export default function App() {
                 <span>{ax.opposite}</span>
               </div>
               <div className="axis-track">
-                <div className="axis-marker" style={{ left: `${ax.score}%` }} />
+                <div className="axis-marker" style={{ left: `${ax.score !== undefined ? ax.score : 50}%` }} />
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: "10px", color: "var(--muted)", marginTop: "4px" }}>
-                <span>{100 - ax.score}%</span>
-                <span>{ax.score}%</span>
+                <span>{100 - (ax.score !== undefined ? ax.score : 50)}%</span>
+                <span>{ax.score !== undefined ? ax.score : 50}%</span>
               </div>
             </div>
           ))}
         </div>
       )}
 
+      {}
       <div className="glass-card calibration-section">
         <h2 className="calibration-title">🎯 Уточнить результат (веса факторов)</h2>
         <p className="calibration-desc">
@@ -678,7 +753,7 @@ export default function App() {
 
         <div>
           {SECTIONS.map(s => {
-            const v = weights[s.id] || 1;
+            const v = weights[s.id] !== undefined ? weights[s.id] : 1;
             return (
               <div key={s.id} className="weight-row">
                 <span className="w-label">{s.label}</span>
