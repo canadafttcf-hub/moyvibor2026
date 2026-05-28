@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
 
-
 interface Party {
   code: string;
   name: string;
@@ -35,15 +34,15 @@ interface AxisQuestion {
 }
 
 interface Axis {
+  id: string;
   label: string;
   opposite: string;
   qs: AxisQuestion[];
-  score?: number;
 }
 
 const PARTIES: Party[] = [
   { code: "ER",   name: "Единая Россия", color: "#1e40af", logo: "er_logo.png", emoji: "🐻", leader: "Дмитрий Медведев", descr: "Консервативная партия власти. Приоритеты: стабильность, порядок, суверенитет." },
-  { code: "KPRF", name: "КПРФ", color: "#dc2626", logo: "kprf.png", emoji: "☭", leader: "Геннадий Зюганов", descr: "Левая оппозиция. За национализацию, социальное равенство и советские стандарты." },
+  { code: "KPRF", name: "КПРФ", color: "#dc2626", logo: "kprf.png", emoji: "☭", leader: "Геннадий Зюганов", descr: "Левая оппозиция. За nationalизацию, социальное равенство и советские стандарты." },
   { code: "LDPR", name: "ЛДПР", color: "#eab308", logo: "ldpr.png", emoji: "🦅", leader: "Леонид Слуцкий", descr: "Национал-популизм. Жёсткая внешняя политика, поддержка армии и ограничение миграции." },
   { code: "NL",   name: "Новые люди", color: "#0d9488", logo: "nl_logo.png", emoji: "🌿", leader: "Алексей Нечаев", descr: "Либеральный центр. Поддержка бизнеса, обновление элит и цифровизация." },
   { code: "SR",   name: "Справедливая Россия", color: "#7c3aed", logo: "sr_logo.png", emoji: "⚖️", leader: "Сергей Миронов", descr: "Социал-демократия. Справедливое распределение благ и патриотизм." },
@@ -67,6 +66,50 @@ const SECTIONS: Section[] = [
   { id: "VIII", label: "Экология и технологии" },
   { id: "IX",   label: "Миграция и национальный вопрос" },
   { id: "X",    label: "Личное мировоззрение" },
+];
+
+// Проработанные шкалы идеологии для точного идеологического позиционирования
+const IDEOLOGY_AXES: Axis[] = [
+  {
+    id: "auth_lib",
+    label: "Государственник (Авторитаризм)",
+    opposite: "Либерал (Либертарианство)",
+    qs: [
+      { n: 1, dir: 1 }, { n: 2, dir: -1 }, { n: 4, dir: 1 }, { n: 5, dir: -1 },
+      { n: 6, dir: 1 }, { n: 10, dir: -1 }, { n: 41, dir: 1 }, { n: 47, dir: -1 },
+      { n: 91, dir: 1 }, { n: 92, dir: -1 }
+    ]
+  },
+  {
+    id: "left_right",
+    label: "Левый (Социализм / План)",
+    opposite: "Правый (Капитализм / Рынок)",
+    qs: [
+      { n: 11, dir: 1 }, { n: 12, dir: 1 }, { n: 13, dir: -1 }, { n: 15, dir: 1 },
+      { n: 17, dir: -1 }, { n: 18, dir: 1 }, { n: 21, dir: 1 }, { n: 27, dir: 1 },
+      { n: 96, dir: -1 }, { n: 99, dir: 1 }
+    ]
+  },
+  {
+    id: "global_suv",
+    label: "Суверенитет (Изоляционизм)",
+    opposite: "Глобализм (Интеграция)",
+    qs: [
+      { n: 20, dir: 1 }, { n: 42, dir: 1 }, { n: 54, dir: 1 }, { n: 60, dir: 1 },
+      { n: 61, dir: 1 }, { n: 62, dir: -1 }, { n: 63, dir: 1 }, { n: 67, dir: -1 },
+      { n: 69, dir: -1 }, { n: 77, dir: 1 }
+    ]
+  },
+  {
+    id: "trad_prog",
+    label: "Традиционализм / Консерватизм",
+    opposite: "Прогрессивизм / Модернизм",
+    qs: [
+      { n: 24, dir: -1 }, { n: 25, dir: 1 }, { n: 51, dir: 1 }, { n: 52, dir: 1 },
+      { n: 55, dir: -1 }, { n: 57, dir: 1 }, { n: 58, dir: 1 }, { n: 72, dir: -1 },
+      { n: 83, dir: 1 }, { n: 89, dir: 1 }
+    ]
+  }
 ];
 
 const MATRIX: Record<number, number[]> = {
@@ -158,7 +201,12 @@ const ALL_QUESTIONS: Question[] = [
   { n:49, sec:"V", text:"Россия должна развивать собственные цифровые платформы.", detail:"Технологическая независимость: критически важно ли создавать суверенные операционные системы, сервисы и процессоры." },
   { n:50, sec:"V", text:"Искусственный интеллект должен регулироваться государством.", detail:"Новые технологии: необходимо ли ввести государственный контроль над обучением нейросетей ради предотвращения рисков безработицы и утечек." },
   { n:51, sec:"VI", text:"Государство должно поддерживать традиционные религии.", detail:"Духовные ценности: должна ли власть оказывать особую поддержку религиозным институтам как хранителям морального фундамента общества." },
-  { n:52, sec:"VI", text:"ЛГБТ-пропаганда должна быть запрещена.", detail:"Общественная мораль: необходимы ли строгие законодательные запреты на демонстрацию нетрадиционных отношений ради защиты традиций." },
+  { 
+    n:52, 
+    sec:"VI", 
+    text:"ЛГБТ-пропаганда должна быть запрещена *", 
+    detail: "Общественная мораль: необходимы ли строгие законодательные запреты на демонстрацию нетрадиционных отношений ради защиты традиций. *(ЛГБТ-движение признано экстремистским и запрещено на территории РФ)." 
+  },
   { n:53, sec:"VI", text:"Русская культура должна активно поддерживаться.", detail:"Культурная идентичность: должно ли государство приоритетно субсидировать только те художественные проекты, которые соответствуют традициям." },
   { n:54, sec:"VI", text:"Западные культурные влияния представляют угрозу.", detail:"Импорт ценностей: ведет ли массовое проникновение западной культуры, музыки и кинематографа к размыванию национальной самобытности." },
   { n:55, sec:"VI", text:"Церковь не должна влиять на политику.", detail:"Светское государство: следует ли полностью исключить участие религиозных деятелей и организаций в обсуждении законов и школьных программ." },
@@ -172,7 +220,7 @@ const ALL_QUESTIONS: Question[] = [
   { n:63, sec:"VII", text:"Санкции Запада укрепляют Россию.", detail:"Развитие через ограничения: полезно ли внешнее давление, так как оно вынуждает развивать собственную промышленность и сельское хозяйство." },
   { n:64, sec:"VII", text:"Права человека важнее государственных интересов.", detail:"Гуманитарные приоритеты: должны ли фундаментальные свободы отдельной личности стоять выше геополитических и стратегических задач государства." },
   { n:65, sec:"VII", text:"Россия должна поддерживать русскоязычных за рубежом.", detail:"Диаспора: обязано ли государство использовать экономические и дипломатические ресурсы для защиты соотечественников в других странах." },
-  { n:66, sec:"VII", text:"НАТО представляет угрозу безопасности России.", detail:"Военные блоки: несет ли расширение военной инфраструктуры североатлантического альянса к границам страны прямую и неизбежную угрозу." },
+  { n:66, sec:"VII", text:"НАТО представляет угрозу безопасности России.", detail:"Воемные блоки: несет ли расширение военной инфраструктуры североатлантического альянса к границам страны прямую и неизбежную угрозу." },
   { n:67, sec:"VII", text:"Россия должна быть открыта к сотрудничеству с Европой.", detail:"Культурные связи: полезно ли сохранять гуманитарный, научный и образовательный обмен с европейскими странами вопреки разногласиям." },
   { n:68, sec:"VII", text:"СНГ — зона особых интересов России.", detail:"Региональное лидерство: должна ли интеграция на постсоветском пространстве оставаться ключевым внешнеполитическим приоритетом страны." },
   { n:69, sec:"VII", text:"Россия должна наладить отношения с Украиной.", detail:"Будущее соседства: важно ли приложить максимальные дипломатические усилия для восстановления стабильного взаимодействия после завершения споров." },
@@ -200,8 +248,7 @@ const ALL_QUESTIONS: Question[] = [
   { n:91, sec:"X", text:"Сильный лидер важнее полной конкуренции.", detail:"Эффективность лидерства: является ли централизованное принятие решений одним сильным лидером более надежным в кризисный период, чем демократический диалог." },
   { n:92, sec:"X", text:"Молодёжи нужно дать больше политической свободы.", detail:"Новое поколение: полезно ли активно вовлекать молодых граждан в управление и расширять границы их политической активности." },
   { n:93, sec:"X", text:"Нужно сокращать влияние олигархов.", detail:"Крупный капитал: необходимо ли законодательно лишить крупных бизнесменов возможности лоббировать законы и влиять на кадровые назначения." },
-  { n:94, sec:"X", text:"Будущее — в сильном государстве с соц. справедливостью.", detail:"Образ будущего: является ли сочетание мощной государственной власти и гарантированной заботы о каждом гражданине идеальной моделью." },
-  { n:95, sec:"X", text:"Неравенство доходов в России слишком велико.", detail:"Расслоение общества: представляет ли огромная разница в доходах между бедными и богатыми слоями населения экзистенциальную угрозу стабильности." },
+  { n:94, sec:"X", text:"Будущее — в сильном государстве с соц. справедливостью.", detail:"Образ будущего: является ли сочетание мощной государственной власти и гарантированной заботы о каждом гражданине идеальной моделью." }, { n:95, sec:"X", text:"Неравенство доходов в России слишком велико.", detail:"Расслоение общества: представляет ли огромная разница в доходах между бедными и богатыми слоями населения экзистенциальную угрозу стабильности." },
   { n:96, sec:"X", text:"Частный бизнес обычно эффективнее государства.", detail:"Форма собственности: согласны ли вы с тем, что коммерческие предприятия всегда работают гибче, экономнее и инновационнее госструктур." },
   { n:97, sec:"X", text:"Цензура в условиях кризиса может быть оправдана.", detail:"Информационные ограничения: допустимо ли временное введение цензуры со стороны государства в период чрезвычайных положений ради порядка." },
   { n:98, sec:"X", text:"Россия должна стремиться к тех. самодостаточности.", detail:"Производственный цикл: важно ли развивать внутреннее машиностроение и приборостроение, даже если это потребует колоссальных затрат." },
@@ -226,719 +273,130 @@ const ARCHETYPES: Archetype[] = [
   { name: "Умеренный прогрессист", desc: "Вы поддерживаете рыночные реформы, свободу предпринимательства, цифровые инновации и умеренно-прагматичный подход к политическим свободам.", party: "NL" },
   { name: "Социал-демократ", desc: "Вы придерживаетесь умеренно-левых взглядов, стремясь совместить развитую систему социальной поддержки граждан, прогрессивные налоги и патриотизм.", party: "SR" },
   { name: "Либерал-европеист", desc: "Ваши приоритеты — права человека, свобода слова, независимые суды, рыночная экономика и открытость к международному сотрудничеству.", party: "YAB" },
-  { name: "Социал-патерналист", desc: "Вы делаете особый упор на поддержку старшего поколения, качественную медицину, защиту пенсионеров и социальную опеку со стороны государства.", party: "RPPS" },
-  { name: "Радикальный коммунист", desc: "Вы сторонник бескомпромиссного возврата к плановой системе, ликвидации частного капитала и воссоздания советского строя на ленинских принципах.", party: "KR" },
-  { name: "Эко-модернист", desc: "Ваш приоритет — защита окружающей среды, внедрение зеленых стандартов и ресурсосберегающих технологий при сохранении стабильного роста.", party: "ZEL" },
-  { name: "Имперский консерватор", desc: "Вы сторонник правого консерватизма. Максимальный упор на оборонную мощь, милитаризацию экономики и жесткое отстаивание суверенных рубежей.", party: "ROD" },
-  { name: "Цифровой технократ", desc: "Ваш ориентир — прямая электронная демократия, блокчейн-голосование, технологическая независимость и алгоритмизация госуправления.", party: "PPD" },
-  { name: "Консервативный либерал", desc: "Вы занимаете правоцентристскую позицию: максимальные свободы для бизнеса и рынка при сохранении безусловной лояльности государству.", party: "GP" }
 ];
-
-
-const AXES: Axis[] = [
-  {
-    label: "Государственник",
-    opposite: "Либерал",
-    qs: [
-      { n: 1, dir: 1 },  // Президенту больше полномочий (+)
-      { n: 2, dir: -1 }, // Парламент слишком слабый (-)
-      { n: 3, dir: -1 }, // Губернаторов выбирать независимо (-)
-      { n: 4, dir: 1 },  // Сильная вертикаль важнее автономии (+)
-      { n: 5, dir: -1 }, // Оппозиции больше возможностей (-)
-      { n: 6, dir: 1 },  // Бороться с протестами (+)
-      { n: 7, dir: 1 },  // Электронное голосование (+)
-      { n: 8, dir: -1 }, // Суды недостаточно независимы (-)
-      { n: 10, dir: -1 },// Сроки строже ограничить (-)
-      { n: 33, dir: 1 }, // Усиливать внутреннюю безопасность (+)
-      { n: 36, dir: 1 }, // Силовикам широкие полномочия (+)
-      { n: 41, dir: 1 }, // Control internet (+)
-      { n: 42, dir: 1 }, // Foreign social networks threat (+)
-      { n: 43, dir: 1 }, // Access to messages (+)
-      { n: 46, dir: 1 }, // Fake news limits (+)
-      { n: 47, dir: -1 },// Free internet (-)
-      { n: 48, dir: -1 },// Online anonymity (-)
-      { n: 91, dir: 1 }, // Strong leader over competition (+)
-      { n: 92, dir: -1 },// More freedom for youth (-)
-      { n: 97, dir: 1 }, // Crisis censorship (+)
-    ]
-  },
-  {
-    label: "Социалист",
-    opposite: "Рыночник",
-    qs: [
-      { n: 11, dir: 1 },  // Налоги крупным компаниям (+)
-      { n: 12, dir: 1 },  // Приватизация 90-х ошибка (+)
-      { n: 13, dir: -1 }, // Малому бизнесу снизить налоги (-)
-      { n: 14, dir: -1 }, // Госкорпорации раздуты (-)
-      { n: 15, dir: 1 },  // Стратегические госконтроль (+)
-      { n: 16, dir: 1 },  // Повышать МРОТ (+)
-      { n: 17, dir: -1 }, // Рыночная экономика лучший путь (-)
-      { n: 18, dir: 1 },  // Ограничивать цены (+)
-      { n: 21, dir: 1 },  // Пособия малоимущим (+)
-      { n: 22, dir: 1 },  // Пенсионный возраст снизить (+)
-      { n: 27, dir: 1 },  // Вернуть советские соцгарантии (+)
-      { n: 29, dir: 1 },  // Бедность - главная проблема (+)
-      { n: 30, dir: 1 },  // Богатые регионы помогают бедным (+)
-      { n: 93, dir: 1 },  // Сокращать влияние олигархов (+)
-      { n: 95, dir: 1 },  // Неравенство доходов слишком велико (+)
-      { n: 96, dir: -1 }, // Частный бизнес эффективнее (-)
-      { n: 99, dir: 1 },  // Прогрессивный налог (+)
-    ]
-  },
-  {
-    label: "Традиционалист",
-    opposite: "Прогрессист",
-    qs: [
-      { n: 25, dir: 1 },  // Воспитывать патриотизм (+)
-      { n: 51, dir: 1 },  // Поддерживать традиционные религии (+)
-      { n: 52, dir: 1 },  // ЛГБТ-пропаганда запрещена (+)
-      { n: 53, dir: 1 },  // Русская культура поддерживаться (+)
-      { n: 54, dir: 1 },  // Западные влияния - угроза (+)
-      { n: 55, dir: -1 }, // Церковь не должна влиять на политику (-)
-      { n: 57, dir: 1 },  // Традиционная семья - основа (+)
-      { n: 58, dir: 1 },  // Воспитывать патриотов в школе (+)
-      { n: 83, dir: 1 },  // Мигранты интегрироваться (+)
-      { n: 86, dir: 1 },  // Русский язык - единственный официальный (+)
-      { n: 87, dir: -1 }, // Нацменьшинства - автономия (-)
-      { n: 89, dir: 1 },  // Ограничить приток из далеких стран (+)
-    ]
-  },
-  {
-    label: "Изоляционист",
-    opposite: "Глобалист",
-    qs: [
-      { n: 5, dir: -1 },  // Оппозиция больше возможностей (-)
-      { n: 20, dir: 1 },  // Импортозамещение полезно (+)
-      { n: 61, dir: 1 },  // Многополярный мир (+)
-      { n: 62, dir: -1 }, // Нормализовать отношения с Западом (-)
-      { n: 63, dir: 1 },  // Санкции укрепляют (+)
-      { n: 64, dir: -1 }, // Права человека важнее госинтересов (-)
-      { n: 66, dir: 1 },  // НАТО - угроза (+)
-      { n: 67, dir: -1 }, // Открыта к Европе (-)
-      { n: 69, dir: -1 }, // Наладить отношения с Украиной (-)
-      { n: 70, dir: 1 },  // Китай - партнер (+)
-      { n: 75, dir: 1 },  // Климатическая повестка - давление Запада (+)
-      { n: 77, dir: 1 },  // Технологический суверенитет (+)
-    ]
-  }
-];
-
-
-function calcScores(answers: Record<number, number>, weights: Record<string, number>): Record<string, number> {
-  const totals: Record<string, number> = {}; 
-  const counts: Record<string, number> = {};
-  const pKeys = ["ER","KPRF","LDPR","NL","SR","YAB","RPPS","KR","ZEL","ROD","PPD","GP"];
-  
-  pKeys.forEach(k => { 
-    totals[k] = 0; 
-    counts[k] = 0; 
-  });
-  
-  Object.entries(answers).forEach(([qn, val]) => {
-    const q = parseInt(qn);
-    const questionData = ALL_QUESTIONS.find(x => x.n === q);
-    const sec = questionData ? questionData.sec : "I";
-    const w = weights[sec] !== undefined ? weights[sec] : 1;
-    const row = MATRIX[q];
-    if (!row) return;
-    pKeys.forEach((p, i) => {
-      const diff = 4 - Math.abs(val - row[i]);
-      totals[p] += diff * w;
-      counts[p] += 4 * w;
-    });
-  });
-  
-  const res: Record<string, number> = {}; 
-  pKeys.forEach(p => { 
-    res[p] = counts[p] > 0 ? Math.round((totals[p] / counts[p]) * 100) : 0; 
-  });
-  return res;
-}
-
-function calcAxes(answers: Record<number, number>): Axis[] {
-  return AXES.map(ax => {
-    const vals = ax.qs
-      .map(qObj => {
-        const userAns = answers[qObj.n];
-        if (userAns === undefined) return null;
-        return qObj.dir === 1 ? userAns : (6 - userAns);
-      })
-      .filter((v): v is number => v !== null);
-
-    if (!vals.length) return { ...ax, score: 50 };
-    const avg = vals.reduce((a, b) => a + b, 0) / vals.length;
-    return { ...ax, score: Math.round(((avg - 1) / 4) * 100) };
-  });
-}
-
-function getArchetype(scores: Record<string, number>): Archetype {
-  if (!scores || Object.keys(scores).length === 0) return ARCHETYPES[0];
-  const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
-  const topParty = sorted[0][0];
-  return ARCHETYPES.find(a => a.party === topParty) || ARCHETYPES[0];
-}
-
-
-const css = `
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,700;0,900;1,700&display=swap');
-  
-  :root {
-    --bg: #090d16;
-    --card: rgba(17, 24, 39, 0.75);
-    --border: rgba(255, 255, 255, 0.08);
-    --accent: #6366f1;
-    --accent-glow: rgba(99, 102, 241, 0.25);
-    --text: #f3f4f6;
-    --muted: #9ca3af;
-  }
-
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; min-height: 100vh; overflow-x: hidden; }
-  
-  .app { max-width: 800px; margin: 0 auto; padding: 40px 20px; }
-  
-  /* Typography */
-  h1 { font-family: 'Playfair Display', serif; font-size: clamp(30px, 7vw, 46px); font-weight: 900; line-height: 1.1; text-align: center; margin-bottom: 20px; background: linear-gradient(135deg, #ffffff, #a5b4fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-  .subtitle { text-align: center; color: var(--muted); font-size: 15px; margin-bottom: 40px; line-height: 1.5; max-width: 650px; margin-left: auto; margin-right: auto; }
-
-  /* Cards */
-  .glass-card { background: var(--card); border: 1px solid var(--border); border-radius: 24px; padding: 32px; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4); margin-bottom: 24px; transition: transform 0.2s, border-color 0.2s; }
-
-  /* Main Menu Options */
-  .menu-option { cursor: pointer; border: 1px solid rgba(255, 255, 255, 0.06); }
-  .menu-option:hover { transform: translateY(-4px); border-color: var(--accent); box-shadow: 0 10px 30px var(--accent-glow); }
-
-  /* Quiz Styles */
-  .q-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; font-weight: 700; color: #818cf8; font-size: 11px; text-transform: uppercase; letter-spacing: 2px; }
-  .q-text { font-family: 'Playfair Display', serif; font-size: clamp(20px, 4.5vw, 26px); margin-bottom: 16px; line-height: 1.35; color: #f9fafb; }
-  
-  .detail-toggle { display: inline-flex; align-items: center; gap: 6px; background: none; border: none; color: #a5b4fc; font-size: 13px; font-weight: 500; cursor: pointer; margin-bottom: 20px; transition: color 0.15s; }
-  .detail-toggle:hover { color: #c7d2fe; }
-  .detail-pane { background: rgba(99, 102, 241, 0.08); border-left: 3px solid #6366f1; border-radius: 4px; padding: 14px 18px; font-size: 14px; line-height: 1.5; color: #cbd5e1; margin-bottom: 24px; text-align: left; }
-
-  .scale { display: flex; flex-direction: column; gap: 10px; }
-  .scale-btn { background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border); padding: 14px 20px; border-radius: 12px; color: var(--text); cursor: pointer; transition: all 0.2s; text-align: left; font-size: 15px; display: flex; align-items: center; gap: 14px; }
-  .scale-btn:hover { background: rgba(255, 255, 255, 0.06); border-color: var(--muted); }
-  .scale-btn.active { background: #4f46e5; border-color: #6366f1; box-shadow: 0 0 15px rgba(99, 102, 241, 0.4); font-weight: 700; }
-  
-  .point-indicator { width: 10px; height: 10px; border-radius: 50%; border: 2px solid currentColor; flex-shrink: 0; }
-
-  .nav { display: flex; justify-content: space-between; margin-top: 32px; gap: 16px; align-items: center; }
-  .btn { flex: 1; padding: 16px; border-radius: 14px; border: none; font-weight: 700; cursor: pointer; text-transform: uppercase; letter-spacing: 1.5px; transition: all 0.2s; font-size: 12px; display: flex; align-items: center; justify-content: center; gap: 8px; }
-  .btn-next { background: #4f46e5; color: white; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3); }
-  .btn-next:hover:not(:disabled) { background: #6366f1; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4); }
-  .btn-next:disabled { opacity: 0.25; cursor: not-allowed; box-shadow: none; }
-  .btn-back { background: transparent; color: var(--muted); border: 1px solid var(--border); }
-  .btn-back:hover { border-color: var(--muted); color: var(--text); }
-
-  /* Results Styles */
-  .arch-label { text-align: center; font-size: 11px; color: #818cf8; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 12px; font-weight: 700; }
-  .arch-name { text-align: center; font-family: 'Playfair Display', serif; font-size: clamp(28px, 5.5vw, 38px); margin-bottom: 12px; color: #ffffff; font-weight: 900; }
-  .arch-desc { text-align: center; font-size: 14px; color: var(--muted); line-height: 1.6; max-width: 600px; margin: 0 auto 32px; }
-
-  .tabs { display: flex; gap: 6px; margin-bottom: 24px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border); padding: 4px; border-radius: 12px; }
-  .tab-btn { flex: 1; padding: 12px; background: none; border: none; border-radius: 8px; color: var(--muted); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; cursor: pointer; transition: all 0.15s; }
-  .tab-btn.active { background: #312e81; color: #c7d2fe; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05); }
-
-  .party-list { display: flex; flex-direction: column; gap: 14px; }
-  .party-item { background: rgba(255, 255, 255, 0.02); padding: 16px; border-radius: 16px; border: 1px solid var(--border); text-align: left; }
-  .party-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 14px; font-weight: 600; }
-  
-  /* Контейнер для отображения логотипов */
-  .party-logo-container {
-    width: 44px;
-    height: 44px;
-    background: #ffffff; /* Белая подложка для максимального контраста прозрачных логотипов */
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-    flex-shrink: 0;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    padding: 3px;
-    overflow: hidden;
-  }
-  .party-logo-container.large {
-    width: 68px;
-    height: 68px;
-    border-radius: 16px;
-    padding: 5px;
-  }
-  .party-logo-img {
-    max-width: 100%;
-    max-height: 100%;
-    object-fit: contain;
-    display: block;
-  }
-  
-  /* Текст на тёмном фоне */
-  .dark-contrast-text {
-    color: #ffffff !important;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
-  }
-
-  .p-bar-bg { height: 10px; background: rgba(0, 0, 0, 0.4); border-radius: 5px; overflow: hidden; }
-  .p-bar-fill { height: 100%; border-radius: 5px; transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1); }
-
-  /* Custom Axes representation */
-  .axis-item { margin-bottom: 24px; text-align: left; }
-  .axis-header { display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 8px; }
-  .axis-track { height: 8px; background: rgba(0, 0, 0, 0.4); border-radius: 4px; border: 1px solid var(--border); position: relative; }
-  .axis-marker { position: absolute; top: 50%; width: 14px; height: 14px; border-radius: 50%; background: #a5b4fc; box-shadow: 0 0 10px #6366f1; border: 2px solid var(--bg); transform: translate(-50%, -50%); transition: left 0.8s cubic-bezier(0.16, 1, 0.3, 1); }
-
-  /* Interactive Calibration Weights */
-  .calibration-section { margin-top: 40px; border-top: 1px dashed var(--border); padding-top: 32px; text-align: left; }
-  .calibration-title { font-family: 'Playfair Display', serif; font-size: 22px; margin-bottom: 8px; color: #ffffff; }
-  .calibration-desc { font-size: 13px; color: var(--muted); margin-bottom: 24px; line-height: 1.5; }
-  .weight-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.03); }
-  .w-label { font-size: 14px; font-weight: 500; color: #cbd5e1; }
-  .w-controls { display: flex; align-items: center; gap: 12px; }
-  .w-btn { width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--border); background: rgba(255,255,255,0.02); color: var(--text); cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; transition: background 0.15s; }
-  .w-btn:hover { background: rgba(255,255,255,0.08); border-color: var(--muted); }
-  .w-val { font-family: 'Inter', monospace; font-weight: 700; color: #818cf8; min-width: 40px; text-align: center; }
-
-  /* Custom internal modal block for confirmation */
-  .modal-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 20px; }
-  .modal-box { background: #0f172a; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 20px; max-width: 450px; width: 100%; padding: 28px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); text-align: left; }
-  .modal-title { font-family: 'Playfair Display', serif; font-size: 20px; margin-bottom: 12px; color: #ffffff; }
-  .modal-text { font-size: 14px; color: var(--muted); line-height: 1.6; margin-bottom: 24px; }
-  .modal-actions { display: flex; gap: 12px; }
-
-  /* Progress Indicators */
-  .indicator-track { height: 4px; background: rgba(255, 255, 255, 0.05); border-radius: 2px; overflow: hidden; margin-bottom: 24px; }
-  .indicator-fill { height: 100%; background: linear-gradient(90deg, #4f46e5, #818cf8); transition: width 0.3s ease; }
-
-  /* Feedback / Toasts */
-  .toast { position: fixed; bottom: 24px; right: 24px; background: #1e1b4b; border: 1px solid #4f46e5; color: #c7d2fe; padding: 12px 24px; border-radius: 12px; z-index: 1000; font-size: 13px; font-weight: 600; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5); animation: slideIn 0.2s ease; }
-
-  /* Брендированный футер для экспорта */
-  .share-watermark { display: none; text-align: center; margin-top: 32px; padding-top: 16px; border-top: 1px solid rgba(255, 255, 255, 0.1); font-size: 12px; color: #818cf8; font-family: 'Inter', sans-serif; text-transform: uppercase; letter-spacing: 2px; }
-
-  @keyframes slideIn {
-    from { transform: translateY(10px); opacity: 0; }
-    to { transform: translateY(0); opacity: 1; }
-  }
-`;
-
-
-interface PartyLogoProps {
-  party: Party;
-  size?: "small" | "large";
-}
-
-function PartyLogo({ party, size = "small" }: PartyLogoProps) {
-  const [error, setError] = useState(false);
-  const containerClass = size === "large" ? "party-logo-container large" : "party-logo-container";
-
-  if (error || !party.logo) {
-    return (
-      <div 
-        className={containerClass} 
-        style={{ 
-          background: party.color, 
-          color: "#ffffff",
-          fontSize: size === "large" ? "32px" : "20px",
-          border: "2px solid rgba(255, 255, 255, 0.15)"
-        }}
-      >
-        {party.emoji}
-      </div>
-    );
-  }
-
-  return (
-    <div className={containerClass}>
-      <img 
-        className="party-logo-img" 
-        src={party.logo} 
-        alt={party.name} 
-        onError={() => setError(true)}
-      />
-    </div>
-  );
-}
-
 
 export default function App() {
-  const [screen, setScreen] = useState<string>("home"); 
-  const [mode, setMode] = useState<"short" | "full">("short"); 
+  const [mode, setMode] = useState<"start" | "quiz" | "result">("start");
+  const [isShort, setIsShort] = useState(false);
+  const [currentIdx, setCurrentIdx] = useState(0);
   const [answers, setAnswers] = useState<Record<number, number>>({});
   const [weights, setWeights] = useState<Record<string, number>>({});
-  const [idx, setIdx] = useState<number>(0);
-  const [showDetail, setShowDetail] = useState<boolean>(false);
-  const [tab, setTab] = useState<string>("parties"); 
-  const [toast, setToast] = useState<string>("");
-  const [confirmModal, setConfirmModal] = useState<{ show: boolean; nextScreen: string }>({ show: false, nextScreen: "" });
 
-  const qs = useMemo(() => {
-    return mode === "short" 
-      ? ALL_QUESTIONS.filter(q => SHORT_INDICES.includes(q.n)) 
-      : ALL_QUESTIONS;
-  }, [mode]);
+  const filteredQuestions = useMemo(() => {
+    if (isShort) {
+      return ALL_QUESTIONS.filter(q => SHORT_INDICES.includes(q.n));
+    }
+    return ALL_QUESTIONS;
+  }, [isShort]);
 
-  const current = qs[idx] || qs[0];
+  const currentQuestion = filteredQuestions[currentIdx];
 
-  useEffect(() => {
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }, [screen, idx]);
-
-
-  const scores = useMemo(() => calcScores(answers, weights), [answers, weights]);
-  const arch = useMemo(() => getArchetype(scores), [scores]);
-  const axesScores = useMemo(() => calcAxes(answers), [answers]);
-
-  const handleNext = () => {
-    if (idx < qs.length - 1) {
-      setIdx(idx + 1);
-      setShowDetail(false);
+  const handleAnswer = (val: number) => {
+    if (!currentQuestion) return;
+    setAnswers(prev => ({ ...prev, [currentQuestion.n]: val }));
+    if (currentIdx < filteredQuestions.length - 1) {
+      setCurrentIdx(prev => prev + 1);
     } else {
-      setScreen("results");
+      setMode("result");
     }
   };
 
-  const adjustW = (id: string, delta: number) => {
-    setWeights(p => {
-      const v = p[id] !== undefined ? p[id] : 1;
-      const nextVal = parseFloat((v + delta).toFixed(1));
-      if (nextVal < 0.5 || nextVal > 3) return p;
-      return { ...p, [id]: nextVal };
-    });
-  };
-
-  const handleRestart = (force = false) => {
-    if (!force && Object.keys(answers).length > 0 && screen === "quiz") {
-      setConfirmModal({ show: true, nextScreen: "home" });
+  const handleBack = () => {
+    if (currentIdx > 0) {
+      setCurrentIdx(prev => prev - 1);
     } else {
-      setAnswers({});
-      setWeights({});
-      setIdx(0);
-      setShowDetail(false);
-      setScreen("home");
-      setConfirmModal({ show: false, nextScreen: "" });
+      setMode("start");
     }
   };
 
-  const startQuiz = (quizMode: "short" | "full") => {
-    setMode(quizMode);
-    setAnswers({});
-    setWeights({});
-    setIdx(0);
-    setShowDetail(false);
-    setScreen("quiz");
-  };
+  const calculatedAxesScores = useMemo(() => {
+    return IDEOLOGY_AXES.map(axis => {
+      let totalMaxScore = 0;
+      let userScore = 0;
 
-  const triggerToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(""), 3000);
-  };
+      axis.qs.forEach(q => {
+        const ans = answers[q.n] || 3; // По умолчанию нейтрально (3)
+        // Смещаем шкалу от 1..5 к -2..2 для чистого вычисления весов
+        const normalizedAns = ans - 3; 
 
-  const handleShareText = async () => {
-    const scoresEntries = Object.entries(scores) as [string, number][];
-    const leader = scoresEntries.sort((a, b) => b[1] - a[1])[0];
-    const leaderParty = PARTIES.find(p => p.code === leader[0]);
-    const leaderPartyEmoji = leaderParty?.emoji ?? "🏛️";
-    const leaderPartyName = leaderParty?.name ?? "Партия";
-    
-    const text = `Мой идеологический тип: ${arch.name}\nМаксимальное совпадение: ${leaderPartyEmoji} ${leaderPartyName} (${leader[1]}%)\nПройти тест политического компаса!`;
-    
-    try {
-      if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(text);
-        triggerToast("Текст результатов скопирован!");
-      } else {
-        const textArea = document.createElement("textarea");
-        textArea.value = text;
-        textArea.style.position = "fixed"; 
-        textArea.style.left = "-9999px";
-        document.body.appendChild(textArea);
-        textArea.focus();
-        textArea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textArea);
-        triggerToast("Текст результатов скопирован!");
-      }
-    } catch (err) {
-      triggerToast("Не удалось скопировать.");
-    }
-  };
+        totalMaxScore += 2; // Максимальный возможный балл за один вопрос
 
-
-  const handleDownloadImage = async () => {
-    triggerToast("Формируем изображение... 🎨");
-    try {
-      await new Promise<void>((resolve, reject) => {
-        if ((window as any).html2canvas) {
-          resolve();
-          return;
+        if (q.dir === 1) {
+          userScore += normalizedAns >= 0 ? normalizedAns : 0;
+        } else {
+          userScore += normalizedAns <= 0 ? Math.abs(normalizedAns) : 0;
         }
-        const script = document.createElement("script");
-        script.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
-        script.onload = () => resolve();
-        script.onerror = (e) => reject(e);
-        document.body.appendChild(script);
       });
 
-      const element = document.getElementById("results-capture-area");
-      if (!element) {
-        triggerToast("Ошибка: область захвата не найдена.");
-        return;
-      }
+      const percentage = totalMaxScore > 0 ? Math.round((userScore / totalMaxScore) * 100) : 50;
 
-      const watermark = element.querySelector(".share-watermark") as HTMLElement;
-      if (watermark) watermark.style.display = "block";
+      return {
+        ...axis,
+        score: percentage
+      };
+    });
+  }, [answers]);
 
-      const canvas = await (window as any).html2canvas(element, {
-        backgroundColor: "#090d16",
-        useCORS: true,
-        scale: 2,
-        logging: false,
-      });
-
-      if (watermark) watermark.style.display = "none";
-
-      const image = canvas.toDataURL("image/png");
-      const link = document.createElement("a");
-      link.href = image;
-      link.download = `Выборы_Госдума_2026_${arch.name.replace(/\s+/g, "_")}.png`;
-      link.click();
-      triggerToast("Картинка сохранена в загрузки! 🖼️");
-    } catch (err) {
-      console.error(err);
-      triggerToast("Сбой генерации картинки. Скопирован текст.");
-      handleShareText();
-    }
-  };
-
-
-  if (screen === "home") {
-    return (
-      <div className="app">
-        <style>{css}</style>
-        
-        <header className="hero">
-          <h1>Выборы в Госдуму 2026<br />Политический Компас</h1>
-          <p className="subtitle">Узнайте, какая партия и политический архетип лучше всего отражают ваши взгляды на выборах в Государственную Думу VIII созыва в сентябре 2026 года</p>
-        </header>
-
-        <div className="glass-card menu-option" onClick={() => startQuiz("short")}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ textAlign: "left" }}>
-              <h2 style={{ fontSize: "20px", marginBottom: "6px", color: "#f3f4f6" }}>Быстрый тест</h2>
-              <p style={{ color: "var(--muted)", fontSize: "14px" }}>20 ключевых вопросов по ключевым темам для экспресс-оценки</p>
-            </div>
-            <span style={{ fontSize: "12px", background: "#312e81", color: "#a5b4fc", padding: "6px 12px", borderRadius: "20px", fontWeight: "700", flexShrink: 0 }}>~ 3 мин</span>
+  return (
+    <div className="container" style={{ padding: "20px", fontFamily: "sans-serif", maxWidth: "600px", margin: "0 auto" }}>
+      {mode === "start" && (
+        <div className="start-screen">
+          <h1>Политический компас РФ</h1>
+          <p>Пройдите тест, чтобы определить ваши точные идеологические координаты и узнать подходящую партию.</p>
+          <div style={{ display: "flex", gap: "10px", marginTop: "20px" }}>
+            <button onClick={() => { setIsShort(true); setCurrentIdx(0); setAnswers({}); setMode("quiz"); }} style={{ padding: "10px 20px", cursor: "pointer" }}>Быстрый тест (20 вопросов)</button>
+            <button onClick={() => { setIsShort(false); setCurrentIdx(0); setAnswers({}); setMode("quiz"); }} style={{ padding: "10px 20px", cursor: "pointer", background: "#2563eb", color: "white" }}>Полный тест (100 вопросов)</button>
           </div>
         </div>
+      )}
 
-        <div className="glass-card menu-option" onClick={() => startQuiz("full")}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ textAlign: "left" }}>
-              <h2 style={{ fontSize: "20px", marginBottom: "6px", color: "#f3f4f6" }}>Полный анализ</h2>
-              <p style={{ color: "var(--muted)", fontSize: "14px" }}>Глубокий тест из 100 вопросов по всем 10 сферам государственной и общественной жизни</p>
-            </div>
-            <span style={{ fontSize: "12px", background: "#065f46", color: "#34d399", padding: "6px 12px", borderRadius: "20px", fontWeight: "700", flexShrink: 0 }}>~ 15 мин</span>
+      {mode === "quiz" && currentQuestion && (
+        <div className="quiz-screen">
+          <div style={{ display: "flex", justifyContent: "space-between", color: "#666" }}>
+            <span>Категория: {SECTIONS.find(s => s.id === currentQuestion.sec)?.label}</span>
+            <span>Вопрос {currentIdx + 1} из {filteredQuestions.length}</span>
           </div>
-        </div>
-
-        <div className="glass-card menu-option" onClick={() => setScreen("glossary")}>
-          <h2 style={{ fontSize: "18px", marginBottom: "6px", color: "#f3f4f6", display: "flex", alignItems: "center", gap: "8px", justifyContent: "flex-start" }}>📚 Справочник кандидатов</h2>
-          <p style={{ color: "var(--muted)", fontSize: "14px", textAlign: "left" }}>Ознакомьтесь с актуальным спектром представленных политических сил, их лидерами и программами на выборах 2026 года</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (screen === "glossary") {
-    return (
-      <div className="app">
-        <style>{css}</style>
-        <header style={{ marginBottom: "32px", textAlign: "left" }}>
-          <h1 style={{ fontSize: "36px", textAlign: "left" }}>Участники выборов 2026</h1>
-          <p style={{ color: "var(--muted)" }}>Официальные партии, претендующие на места в Государственной Думе VIII созыва</p>
-        </header>
-
-        <div className="party-list">
-          {PARTIES.map(p => (
-            <div key={p.code} className="glass-card" style={{ marginBottom: "16px", borderLeft: `4px solid ${p.color}` }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "16px" }}>
-                <PartyLogo party={p} size="large" />
-                <div style={{ textAlign: "left" }}>
-                  <h3 style={{ fontSize: "20px", fontWeight: "700", color: "#ffffff", marginBottom: "4px" }}>{p.name}</h3>
-                  <span style={{ fontSize: "13px", color: "var(--muted)" }}>Председатель/Лидер: {p.leader}</span>
-                </div>
-              </div>
-              <p style={{ fontSize: "14px", color: "#cbd5e1", lineHeight: "1.5" }}>{p.descr}</p>
-            </div>
-          ))}
-        </div>
-
-        <button className="btn btn-back" style={{ marginTop: "24px" }} onClick={() => setScreen("home")}>Вернуться на главную</button>
-      </div>
-    );
-  }
-
-
-  if (screen === "quiz") {
-    const progressPercent = Math.round(((idx) / qs.length) * 100);
-
-    return (
-      <div className="app">
-        <style>{css}</style>
-        
-        <div className="indicator-track">
-          <div className="indicator-fill" style={{ width: `${progressPercent}%` }} />
-        </div>
-
-        <div className="glass-card">
-          <div className="q-meta">
-            <span>{SECTIONS.find(s => s.id === current.sec)?.label}</span>
-            <span>{idx + 1} / {qs.length}</span>
-          </div>
+          <h2 style={{ margin: "20px 0 10px 0" }}>{currentQuestion.text}</h2>
+          <p style={{ color: "#444", fontSize: "14px", marginBottom: "30px", fontStyle: "italic" }}>{currentQuestion.detail}</p>
           
-          <h2 className="q-text" style={{ textAlign: "left" }}>{current.text}</h2>
-
-          <button className="detail-toggle" onClick={() => setShowDetail(!showDetail)}>
-            <span>{showDetail ? "▲ Скрыть суть дилеммы" : "▼ Раскрыть суть дилеммы"}</span>
-          </button>
-
-          {showDetail && (
-            <div className="detail-pane">
-              {current.detail}
-            </div>
-          )}
-
-          <div className="scale">
-            {[1, 2, 3, 4, 5].map(v => (
-              <button 
-                key={v} 
-                className={`scale-btn ${answers[current.n] === v ? "active" : ""}`} 
-                onClick={() => setAnswers({ ...answers, [current.n]: v })}
-              >
-                <div className="point-indicator" style={{ alignSelf: "center" }} />
-                <span>{SCALE_LABELS[v]}</span>
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            {[5, 4, 3, 2, 1].map(val => (
+              <button key={val} onClick={() => handleAnswer(val)} style={{ padding: "12px", textAlign: "left", cursor: "pointer" }}>
+                {SCALE_LABELS[val]}
               </button>
             ))}
           </div>
+
+          <button onClick={handleBack} style={{ marginTop: "20px", padding: "8px 16px", background: "#eee", border: "none", cursor: "pointer" }}>Назад</button>
         </div>
+      )}
 
-        <div className="nav">
-          <button className="btn btn-back" onClick={() => idx > 0 ? setIdx(idx - 1) : handleRestart(false)}>Назад</button>
-          <button className="btn btn-next" disabled={answers[current.n] === undefined} onClick={handleNext}>Дальше →</button>
-        </div>
-
-        {confirmModal.show && (
-          <div className="modal-overlay">
-            <div className="modal-box">
-              <h3 className="modal-title">Сбросить прогресс?</h3>
-              <p className="modal-text">Вы уже начали тест. Если вы вернетесь на главную страницу, все ваши текущие ответы будут безвозвратно утеряны. Продолжить?</p>
-              <div className="modal-actions">
-                <button className="btn btn-back" style={{ flex: 1 }} onClick={() => setConfirmModal({ show: false, nextScreen: "" })}>Отмена</button>
-                <button className="btn" style={{ flex: 1, background: "#ef4444", color: "#ffffff" }} onClick={() => handleRestart(true)}>Да, выйти</button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-
-  return (
-    <div className="app">
-      <style>{css}</style>
-      
-      <div id="results-capture-area" className="glass-card" style={{ padding: "32px", border: "1px solid var(--border)", borderRadius: "24px", marginBottom: "24px" }}>
-        <div className="arch-label">Ваш предвыборный архетип</div>
-        <h1 className="arch-name dark-contrast-text" style={{ margin: "12px 0 16px" }}>{arch.name}</h1>
-        <p className="arch-desc" style={{ marginBottom: "32px" }}>{arch.desc}</p>
-
-        <div className="tabs">
-          <button className={`tab-btn ${tab === "parties" ? "active" : ""}`} onClick={() => setTab("parties")}>Совпадение с партиями</button>
-          <button className={`tab-btn ${tab === "axes" ? "active" : ""}`} onClick={() => setTab("axes")}>Политические шкалы</button>
-        </div>
-
-        {tab === "parties" && (
-          <div className="party-list">
-            {(Object.entries(scores) as [string, number][]).sort((a, b) => b[1] - a[1]).map(([code, val]) => {
-              const p = PARTIES.find(x => x.code === code);
-              if (!p) return null;
-              return (
-                <div key={code} className="party-item" style={{ borderLeft: `4px solid ${p.color}`, paddingLeft: "16px" }}>
-                  <div className="party-head">
-                    <span style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                      <PartyLogo party={p} size="small" />
-                      <span className="dark-contrast-text" style={{ fontWeight: "600" }}>{p.name}</span>
-                    </span>
-                    <span style={{ color: p.color === "#eab308" ? "#facc15" : p.color, fontWeight: "700" }}>{val}%</span>
-                  </div>
-                  <div className="p-bar-bg">
-                    <div className="p-bar-fill" style={{ width: `${val}%`, background: p.color }} />
-                  </div>
+      {mode === "result" && (
+        <div className="result-screen">
+          <h1>Ваши результаты</h1>
+          
+          <div className="axes-results" style={{ margin: "30px 0", display: "flex", flexDirection: "column", gap: "20px" }}>
+            <h3>Идеологический профиль (Шкалы):</h3>
+            {calculatedAxesScores.map(axis => (
+              <div key={axis.id} style={{ borderBottom: "1px solid #eee", paddingBottom: "15px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "14px", fontWeight: "bold", marginBottom: "5px" }}>
+                  <span>{axis.label}</span>
+                  <span>{axis.score}%</span>
                 </div>
-              );
-            })}
-          </div>
-        )}
-
-        {tab === "axes" && (
-          <div>
-            <p style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "24px", lineHeight: "1.5", textAlign: "left" }}>
-              Шкалы определяют ваше точное местоположение по классическим политическим дихотомиям на основе ваших ответов.
-            </p>
-            {axesScores.map((ax, i) => (
-              <div key={i} className="axis-item">
-                <div className="axis-header">
-                  <span>{ax.label}</span>
-                  <span>{ax.opposite}</span>
+                <div style={{ background: "#e5e7eb", borderRadius: "4px", height: "10px", width: "100%", overflow: "hidden" }}>
+                  <div style={{ background: "#2563eb", height: "100%", width: `${axis.score}%`, transition: "width 0.3s ease" }}></div>
                 </div>
-                <div className="axis-track">
-                  <div className="axis-marker" style={{ left: `${ax.score !== undefined ? ax.score : 50}%` }} />
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "10px", color: "var(--muted)", marginTop: "4px" }}>
-                  <span>{100 - (ax.score !== undefined ? ax.score : 50)}%</span>
-                  <span>{ax.score !== undefined ? ax.score : 50}%</span>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#666", marginTop: "4px" }}>
+                  <span>Приоритет левой стороны</span>
+                  <span>Альтернатива: {axis.opposite}</span>
                 </div>
               </div>
             ))}
           </div>
-        )}
 
-        <div className="share-watermark">
-          Выборы в Государственную Думу 2026 • Политический Компас
+          <button onClick={() => setMode("start")} style={{ padding: "10px 20px", background: "#10b981", color: "white", border: "none", cursor: "pointer" }}>Пройти заново</button>
         </div>
-      </div>
-
-      <div className="glass-card calibration-section">
-        <h2 className="calibration-title">🎯 Уточнить результат (веса факторов)</h2>
-        <p className="calibration-desc">
-          Выборы — это баланс приоритетов. Повысьте вес (значимость) категорий, которые важны лично для вас, и графики выше мгновенно перестроятся с учётом вашей личной шкалы ценностей.
-        </p>
-
-        <div>
-          {SECTIONS.map(s => {
-            const v = weights[s.id] !== undefined ? weights[s.id] : 1;
-            return (
-              <div key={s.id} className="weight-row">
-                <span className="w-label">{s.label}</span>
-                <div className="w-controls">
-                  <button className="w-btn" onClick={() => adjustW(s.id, -0.5)}>—</button>
-                  <span className="w-val">{v.toFixed(1)}</span>
-                  <button className="w-btn" onClick={() => adjustW(s.id, 0.5)}>+</button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className="nav" style={{ flexWrap: "wrap", gap: "12px" }}>
-        <button className="btn btn-back" style={{ flex: "1 1 200px" }} onClick={() => handleRestart(false)}>В начало</button>
-        <button className="btn btn-next" style={{ flex: "1 1 200px", background: "#059669" }} onClick={handleDownloadImage}>Скачать постер 🖼️</button>
-        <button className="btn btn-next" style={{ flex: "1 1 200px" }} onClick={handleShareText}>Копировать текст ↗</button>
-      </div>
-
-      {toast && <div className="toast">{toast}</div>}
+      )}
     </div>
   );
 }
