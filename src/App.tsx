@@ -1,333 +1,322 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 
-type Lang = "ru" | "en" | "be" | "tt" | "ba" | "cv";
+// ─────────────────────────────────────────────────────────────
+// TYPES & DICTIONARIES
+// ─────────────────────────────────────────────────────────────
 
-interface Party {
+export type Lang = "ru" | "en" | "be" | "tt" | "ba" | "cv";
+
+export interface Party {
   code: string;
-  color: string;
-  emoji: string;
-  logo: string;
   name: Record<Lang, string>;
+  color: string;
+  logo: string;
+  emoji: string;
   leader: Record<Lang, string>;
   descr: Record<Lang, string>;
 }
 
-interface Archetype {
+export interface Question {
+  n: number;
+  sec: string;
+}
+
+export interface Axis {
+  label: Record<Lang, string>;
+  opposite: Record<Lang, string>;
+  qs: { q: number; dir: 1 | -1 }[];
+}
+
+export interface Archetype {
   name: Record<Lang, string>;
   desc: Record<Lang, string>;
   party: string;
 }
 
-interface Question {
-  n: number;
-  sec: string;
-  text: Record<string, string> & { ru: string; en: string };
-  detail: Record<string, string> & { ru: string; en: string };
-}
-
-interface Axis {
-  label: Record<Lang, string>;
-  opposite: Record<Lang, string>;
-  qs: { q: number; dir: number }[];
-}
-
 const UI_TRANSLATIONS: Record<Lang, Record<string, string>> = {
   ru: {
-    title: "Выборы в Госдуму 2026",
-    subtitle: "Политический Компас",
-    intro: "Независимый электоральный навигатор. Узнайте ваше точное совпадение с ключевыми партиями на выборах в сентябре 2026 года.",
-    shortTest: "Быстрый тест",
-    shortDesc: "20 вопросов по ключевым темам для экспресс-оценки",
-    fullTest: "Полный анализ",
-    fullDesc: "Глубокий тест из 100 вопросов по всем 10 сферам общественной жизни",
-    glossary: "📚 Справочник партий",
-    glossaryDesc: "Ознакомьтесь с актуальным спектром представленных политических сил перед выборами 2026 года",
-    back: "Назад",
-    next: "Дальше →",
-    finish: "Показать результаты",
-    contextShow: "▼ Раскрыть контекст вопроса",
-    contextHide: "▲ Скрыть контекст",
-    archetypeLabel: "Ваш предвыборный архетип",
-    tabParties: "Совпадение с партиями",
+    title: "Навигатор: Госдума 2026",
+    subtitle: "Узнайте своё точное соответствие предвыборным программам 12 ключевых партий перед грядущими выборами в Государственную Думу VIII созыва.",
+    startShort: "Быстрый тест (20 вопросов)",
+    startShortDesc: "Экспресс-анализ по основным электоральным дилеммам.",
+    startFull: "Полный анализ (100 вопросов)",
+    startFullDesc: "Глубокое исследование по всем 10 сферам государственной политики.",
+    startFullBadge: "Максимальная точность",
+    glossaryTitle: "Справочник партий-кандидатов",
+    glossaryDesc: "Официальные политические силы, выходящие на выборы 2026 года.",
+    glossaryBtn: "📚 Справочник партий",
+    backBtn: "← Назад",
+    nextBtn: "Дальше →",
+    resultsTitle: "Ваш предвыборный архетип",
+    tabMatch: "Совпадение с партиями",
     tabAxes: "Политические шкалы",
-    axisDesc: "Шкалы определяют ваше точное местоположение по классическим политическим дихотомиям на основе ваших ответов.",
     calibrationTitle: "🎯 Уточнить результат (веса факторов)",
-    calibrationDesc: "Выборы — это баланс приоритетов. Повысьте вес (значимость) категорий, которые важны лично для вас, и графики выше мгновенно перестроятся с учётом вашей личной шкалы ценностей.",
-    restart: "В начало",
-    share: "Поделиться",
-    download: "Скачать картинку",
+    calibrationDesc: "Выборы — это баланс приоритетов. Повысьте значимость сфер, которые важны лично для вас, и графики выше мгновенно перестроятся.",
+    shareBtn: "Поделиться текстом ↗",
+    downloadBtn: "Скачать картинку 💾",
+    homeBtn: "В начало",
     toastCopied: "Результаты скопированы в буфер обмена!",
-    toastSaved: "Изображение успешно сгенерировано и загружено!",
-    toastError: "Не удалось выполнить операцию.",
-    stateDuma2026: "Кампания: Выборы 2026",
-    neutralDisclaimer: "Все контексты переписаны простыми словами, нейтрально и без партийной предвзятости.",
-    modalTitle: "Сбросить прогресс?",
-    modalText: "Вы уже начали тест. Если вы вернетесь на главную страницу, все ваши ответы будут утеряны. Продолжить?",
+    toastError: "Не удалось скопировать. Попробуйте вручную.",
+    toastDownload: "Генерация карточки... Изображение будет скачано автоматически.",
+    disclaimer: "Данный тест является независимым электоральным симулятором и не связан с ЦИК РФ или какими-либо политическими силами. Позиции партий реконструированы на основе их официальных программных документов и манифестов.",
+    contextTitle: "Контекст вопроса",
+    contextHide: "▲ Скрыть контекст",
+    contextShow: "▼ Раскрыть контекст",
+    skipBtn: "Пропустить вопрос",
+    modalResetTitle: "Сбросить прогресс?",
+    modalResetText: "Вы уже начали проходить тест. Если вы вернетесь на главную страницу, все ваши ответы будут сброшены.",
     modalCancel: "Отмена",
     modalConfirm: "Да, выйти",
-    leader: "Лидер",
-    skip: "Пропустить вопрос",
-    ag: "Против",
-    sag: "Скорее нет",
-    neu: "Нейтрально",
-    sad: "Скорее да",
-    ad: "Согласен",
-    scoreText: "Совпадение:"
+    leaderLabel: "Лидер избирательного списка: ",
+    sec_I: "Государство и власть",
+    sec_II: "Экономика",
+    sec_III: "Социальная политика",
+    sec_IV: "Армия и безопасность",
+    sec_V: "Интернет и цифровой контроль",
+    sec_VI: "Культура и ценности",
+    sec_VII: "Внешняя политика",
+    sec_VIII: "Экология и технологии",
+    sec_IX: "Миграция и национальный вопрос",
+    sec_X: "Личное мировоззрение"
   },
   en: {
-    title: "Elections to the State Duma 2026",
-    subtitle: "Political Compass",
-    intro: "Independent electoral navigator. Discover your exact match with key parties for the September 2026 elections.",
-    shortTest: "Quick Test",
-    shortDesc: "20 key questions across vital topics for an express assessment",
-    fullTest: "Full Analysis",
-    fullDesc: "An in-depth test of 100 questions covering all 10 areas of public life",
-    glossary: "📚 Party Directory",
-    glossaryDesc: "Explore the current spectrum of active political forces before the 2026 elections",
-    back: "Back",
-    next: "Next →",
-    finish: "Show Results",
-    contextShow: "▼ Reveal Context",
-    contextHide: "▲ Hide Context",
-    archetypeLabel: "Your Electoral Archetype",
-    tabParties: "Match with Parties",
+    title: "Duma 2026 Navigator",
+    subtitle: "Find your exact alignment with the electoral manifestos of 12 key parties ahead of the State Duma VIII convocation elections.",
+    startShort: "Quick Test (20 questions)",
+    startShortDesc: "Express analysis of key electoral dilemmas.",
+    startFull: "Full Analysis (100 questions)",
+    startFullDesc: "In-depth research across all 10 spheres of public policy.",
+    startFullBadge: "Highest Accuracy",
+    glossaryTitle: "Candidate Directory",
+    glossaryDesc: "Official political forces participating in the 2026 elections.",
+    glossaryBtn: "📚 Party Directory",
+    backBtn: "← Back",
+    nextBtn: "Next →",
+    resultsTitle: "Your Electoral Archetype",
+    tabMatch: "Party Alignment",
     tabAxes: "Political Scales",
-    axisDesc: "Scales determine your exact position along classic political dichotomies based on your answers.",
-    calibrationTitle: "🎯 Refine Results (Factor Weights)",
-    calibrationDesc: "Elections are a balance of priorities. Increase the weight (importance) of categories that matter personally to you, and the charts above will instantly adapt to your personal values.",
-    restart: "Restart",
-    share: "Share Results",
-    download: "Download Image",
+    calibrationTitle: "🎯 Fine-tune Results (Weights)",
+    calibrationDesc: "Elections are a balance of priorities. Increase the significance of spheres important to you, and the charts will adapt instantly.",
+    shareBtn: "Share Text ↗",
+    downloadBtn: "Download Card 💾",
+    homeBtn: "To Start",
     toastCopied: "Results copied to clipboard!",
-    toastSaved: "Image successfully generated and downloaded!",
-    toastError: "Failed to perform operation.",
-    stateDuma2026: "Campaign: Elections 2026",
-    neutralDisclaimer: "All contexts have been written in simple, neutral terms without party bias.",
-    modalTitle: "Reset progress?",
-    modalText: "You have already started the test. If you return to the home page, all your answers will be lost. Continue?",
+    toastError: "Failed to copy. Please do it manually.",
+    toastDownload: "Generating card... The image will download automatically.",
+    disclaimer: "This test is an independent electoral simulator and is not affiliated with the CEC of the Russian Federation or any political forces.",
+    contextTitle: "Question Context",
+    contextHide: "▲ Hide Context",
+    contextShow: "▼ Show Context",
+    skipBtn: "Skip Question",
+    modalResetTitle: "Reset Progress?",
+    modalResetText: "You have already started the test. Returning to the main page will clear your progress.",
     modalCancel: "Cancel",
-    modalConfirm: "Yes, exit",
-    leader: "Leader",
-    skip: "Skip Question",
-    ag: "Against",
-    sag: "Rather No",
-    neu: "Neutral",
-    sad: "Rather Yes",
-    ad: "Agree",
-    scoreText: "Match:"
+    modalConfirm: "Yes, Exit",
+    leaderLabel: "Electoral list leader: ",
+    sec_I: "State & Power",
+    sec_II: "Economy",
+    sec_III: "Social Policy",
+    sec_IV: "Army & Security",
+    sec_V: "Internet & Digital Control",
+    sec_VI: "Culture & Values",
+    sec_VII: "Foreign Policy",
+    sec_VIII: "Ecology & Technology",
+    sec_IX: "Migration & National Question",
+    sec_X: "Personal Outlook"
   },
   be: {
-    title: "Выбары ў Дзярждуму 2026",
-    subtitle: "Палітычны Компас",
-    intro: "Незалежны электаральны навігатар. Даведайцеся пра сваё дакладнае супадзенне з ключавымі партыямі на выбарах у верасні 2026 года.",
-    shortTest: "Хуткі тэст",
-    shortDesc: "20 пытанняў па ключавых тэмах для экспрэс-ацэнкі",
-    fullTest: "Поўны аналіз",
-    fullDesc: "Глыбокі тэст з 100 пытанняў па ўсіх 10 сферах грамадскага жыцця",
-    glossary: "📚 Даведнік партый",
-    glossaryDesc: "Азнаёмцеся з актуальным спектрам прадстаўленых палітычных сіл перад выбарамі 2026 года",
-    back: "Назад",
-    next: "Далей →",
-    finish: "Паказаць вынікі",
-    contextShow: "▼ Раскрыць кантэкст пытання",
-    contextHide: "▲ Схаваць кантэкст",
-    archetypeLabel: "Ваш перадвыбарчы архетып",
-    tabParties: "Супадзенне з партыямі",
+    title: "Навігатар: Дзярждума 2026",
+    subtitle: "Даведайцеся пра сваю дакладную адпаведнасць перадвыбарным праграмам 12 ключавых партый перад выбарамі ў Дзяржаўную Думу.",
+    startShort: "Хуткі тэст (20 пытанняў)",
+    startShortDesc: "Экспрэс-аналіз па асноўных электаральных дылемах.",
+    startFull: "Поўны аналіз (100 пытанняў)",
+    startFullDesc: "Глыбокае даследаванне па ўсіх 10 сферах дзяржаўнай палітыкі.",
+    startFullBadge: "Максімальная дакладнасць",
+    glossaryTitle: "Даведнік партый-кандыдатаў",
+    glossaryDesc: "Афіцыйныя палітычныя сілы, якія выходзяць на выбары 2026 года.",
+    glossaryBtn: "📚 Даведнік партый",
+    backBtn: "← Назад",
+    nextBtn: "Далей →",
+    resultsTitle: "Ваш перадвыбарны архетып",
+    tabMatch: "Супадзенне з партыямі",
     tabAxes: "Палітычныя шкалы",
-    axisDesc: "Шкалы вызначаюць ваша дакладнае месцазнаходжанне па класіскіх палітычных дыхатоміях на аснове вашых адказаў.",
     calibrationTitle: "🎯 Удакладніць вынік (вага фактараў)",
-    calibrationDesc: "Выбары — гэта баланс прыярытэтаў. Павялічце вагу (значнасць) катэгорый, якія важныя асабіста для вас, і графікі вышэй імгненна перабудуюцца з улікам вашай асабістай шкалы каштоўнасцей.",
-    restart: "У пачатак",
-    share: "Падзяліцца",
-    download: "Спампаваць карцінку",
-    toastCopied: "Вынікі скапіраваны ў буфер абмену!",
-    toastSaved: "Выява паспяхова згенеравана і спампавана!",
-    toastError: "Не ўдалося выканаць аперацыю.",
-    stateDuma2026: "Кампанія: Выбары 2026",
-    neutralDisclaimer: "Усе кантэксты напісаны простымі словамі, нейтральна і без партыйнай прадузятасці.",
-    modalTitle: "Скінуць прагрэс?",
-    modalText: "Вы ўжо пачалі тэст. Калі вы вернецеся на галоўную старонку, усе вашы адказы будуць страчаны. Працягнуць?",
+    calibrationDesc: "Выбары — гэта баланс прыярытэтаў. Павялічце значнасць сфер, якія важныя для вас, і графікі імгненна перабудуюцца.",
+    shareBtn: "Падзяліцца тэкстам ↗",
+    downloadBtn: "Спампаваць малюнак 💾",
+    homeBtn: "У пачатак",
+    toastCopied: "Вынікі скапіяваны ў буфер абмену!",
+    toastError: "Не ўдалося скапіяваць. Паспрабуйце ўручную.",
+    toastDownload: "Генерацыя карткі...",
+    disclaimer: "Гэты тэст з'яўляецца незалежным электаральным сімулятарам і не звязаны з ЦВК РФ.",
+    contextTitle: "Кантэкст пытання",
+    contextHide: "▲ Схаваць кантэкст",
+    contextShow: "▼ Раскрыць кантэкст",
+    skipBtn: "Прапусціць пытанне",
+    modalResetTitle: "Скінуць прагрэс?",
+    modalResetText: "Вы ўжо пачалі тэст. Вяртанне на галоўную скіне ваш прагрэс.",
     modalCancel: "Адмена",
     modalConfirm: "Так, выйсці",
-    leader: "Лідар",
-    skip: "Прапусціць пытанне",
-    ag: "Супраць",
-    sag: "Хутчэй не",
-    neu: "Нейтральна",
-    sad: "Хутчэй так",
-    ad: "Згодзен",
-    scoreText: "Супадзенне:"
+    leaderLabel: "Лідар спісу: ",
+    sec_I: "Дзяржава і ўлада",
+    sec_II: "Эканоміка",
+    sec_III: "Сацыяльная палітыка",
+    sec_IV: "Армада і бяспека",
+    sec_V: "Інтэрнэт і лічбавы кантроль",
+    sec_VI: "Культура і каштоўнасці",
+    sec_VII: "Знешняя палітыка",
+    sec_VIII: "Экалогія і тэхналогіі",
+    sec_IX: "Міграцыя і нацыянальнае пытанне",
+    sec_X: "Асабістае светапогляд"
   },
   tt: {
-    title: "Дәүләт Думасына Сайлаулар 2026",
-    subtitle: "Сәяси Компас",
-    intro: "Бәйсез сайлау навигаторы. 2026 елның сентябрендә узачак сайлауларда төп партияләр белән туры килүегезне белегез.",
-    shortTest: "Тиз тест",
-    shortDesc: "Экспресс-бәяләү өчен төп темалар буенча 20 сорау",
-    fullTest: "Тулы анализ",
-    fullDesc: "Иҗтимагый тормышның барлык 10 өлкәсе буенча 100 сораудан торган тирән тест",
-    glossary: "📚 Партияләр белешмәлеге",
-    glossaryDesc: "2026 елгы сайлаулар алдыннан тәкъдим ителгән сәяси көчләр белән танышыгыз",
-    back: "Артка",
-    next: "Алга →",
-    finish: "Нәтиҗәләрне күрсәтү",
-    contextShow: "▼ Сорауның контекстын ачу",
-    contextHide: "▲ Контекстны яшерү",
-    archetypeLabel: "Сезнең сайлау архетибыгыз",
-    tabParties: "Партияләр белән туры килү",
+    title: "Навигатор: Дәүләт Думасы 2026",
+    subtitle: "Дәүләт Думасына сайлаулар алдыннан 12 төп партиянең программаларына туры килүегезне белегез.",
+    startShort: "Тиз тест (20 сорау)",
+    startShortDesc: "Төп электораль сораулар буенча экспресс-анализ.",
+    startFull: "Тулы анализ (100 сорау)",
+    startFullDesc: "Дәүләт сәясәтенең барлык 10 өлкәсе буенча тирән тикшеренү.",
+    startFullBadge: "Максималь төгәллек",
+    glossaryTitle: "Партияләр белешмәлеге",
+    glossaryDesc: "2026 елда сайлауларга баручы рәсми сәяси көчләр.",
+    glossaryBtn: "📚 Партияләр белешмәлеге",
+    backBtn: "← Артка",
+    nextBtn: "Алга таба →",
+    resultsTitle: "Сезнең электораль архетибыгыз",
+    tabMatch: "Партияләр белән туры килү",
     tabAxes: "Сәяси шкалалар",
-    axisDesc: "Шкалалар сезнең җавапларыгыз нигезендә классик сәяси дихотомияләр буенча төгәл урнашуыгызны билгели.",
-    calibrationTitle: "🎯 Нәтиҗәне төгәлләштерү (факторлар авырлыгы)",
-    calibrationDesc: "Сайлаулар — ул өстенлекләр балансы. Сезнең өчен мөһим булган категорияләрнең авырлыгын арттырыгыз, һәм югарыдагы графиклар сезнең кыйммәтләр шкаласын исәпкә алып үзгәрәчәк.",
-    restart: "Башына",
-    share: "Уртаклашырга",
-    download: "Рәсемне йөкләргә",
-    toastCopied: "Нәтиҗәләр буферга күчерелде!",
-    toastSaved: "Рәсем уңышлы ясалды һәм йөкләнде!",
-    toastError: "Операцияне үтәп булмады.",
-    stateDuma2026: "Кампания: Сайлаулар 2026",
-    neutralDisclaimer: "Барлык контекстлар гади сүзләр белән, нейтраль һәм бернинди яклылыксыз язылган.",
-    modalTitle: "Прогрессны бетерергәме?",
-    modalText: "Сез тестны башладыгыз инде. Баш биткә кайтсагыз, барлык җавапларыгыз югалачак. Дәвам итәргәме?",
+    calibrationTitle: "🎯 Нәтиҗәне ачыклау (факторлар авырлыгы)",
+    calibrationDesc: "Сайлаулар — өстенлекләр балансы. Сезнең өчен мөһим өлкәләрнең әһәмиятен арттырыгыз.",
+    shareBtn: "Текстны уртаклашырга ↗",
+    downloadBtn: "Рәсемне йөкләргә 💾",
+    homeBtn: "Башына",
+    toastCopied: "Нәтиҗәләр күчереп алынды!",
+    toastError: "Күчереп алып булмады. Үзегез эшләп карагыз.",
+    toastDownload: "Карточка әзерләнә...",
+    disclaimer: "Бу тест бәйсез электораль симулятор булып тора һәм РФ ҮК белән бәйләнмәгән.",
+    contextTitle: "Сорауның контексты",
+    contextHide: "▲ Контекстны яшерү",
+    contextShow: "▼ Контекстны ачу",
+    skipBtn: "Сорауны калдыру",
+    modalResetTitle: "Прогрессны бетерергәме?",
+    modalResetText: "Сез тестны башладыгыз инде. Галоўная биткә кайтсагыз, прогресс югалачак.",
     modalCancel: "Баш тарту",
     modalConfirm: "Әйе, чыгарга",
-    leader: "Җитәкче",
-    skip: "Сорауны калдыру",
-    ag: "Каршы",
-    sag: "Шулай да юк",
-    neu: "Нейтраль",
-    sad: "Шулай да әйе",
-    ad: "Килешәм",
-    scoreText: "Туры килү:"
+    leaderLabel: "Сайлау исемлеге лидеры: ",
+    sec_I: "Дәүләт һәм хакимият",
+    sec_II: "Икътисад",
+    sec_III: "Социаль сәясәт",
+    sec_IV: "Армия һәм иминлек",
+    sec_V: "Интернет һәм санлы контроль",
+    sec_VI: "Мәдәният һәм кыйммәтләр",
+    sec_VII: "Тышкы сәясәт",
+    sec_VIII: "Экология һәм технологияләр",
+    sec_IX: "Миграция һәм милли мәсьәлә",
+    sec_X: "Шәхси дөньяга караш"
   },
   ba: {
-    title: "Дәүләт Думаһына Сайлауҙар 2026",
-    subtitle: "Сәйәси Компас",
-    intro: "Бәйһеҙ сайлау навигаторы. 2026 йылдың сентябрендә үтәсәк сайлауҙарҙа төп партияләр менән тап килеүегеҙҙе белегеҙ.",
-    shortTest: "Тез тест",
-    shortDesc: "Экспресс-бәһәләү өсөн төп темалар буйынса 20 һорау",
-    fullTest: "Тулы анализ",
-    fullDesc: "Ижтимағи тормоштоң барлыҡ 10 өлкәһе буйынса 100 һорауҙан торған тирән тест",
-    glossary: "📚 Партиялар белешмәлеге",
-    glossaryDesc: "2026 йылғы сайлауҙар алдынан тәҡдим ителгән сәйәси көстәр менән танышығыҙ",
-    back: "Артҡа",
-    next: "Алга →",
-    finish: "Нәтижәләрҙе күрһәтеү",
-    contextShow: "▼ Һорауҙың контексын асырға",
-    contextHide: "▲ Контексты йәшерергә",
-    archetypeLabel: "Һеҙҙең сайлау архетибығыҙ",
-    tabParties: "Партиялар менән тап килү",
+    title: "Навигатор: Дәүләт Думаһы 2026",
+    subtitle: "Дәүләт Думаһына сайлауҙар алдынан 12 төп партия программаларына ни тиклем туры килеүегеҙҙе белегеҙ.",
+    startShort: "Тез тест (20 һорау)",
+    startShortDesc: "Төп электораль һорауҙар буйынса экспресс-анализ.",
+    startFull: "Тулы анализ (100 һорау)",
+    startFullDesc: "Дәүләт сәйәсәтенең барлыҡ 10 өлкәһе буйынса тәрән тикшеренеү.",
+    startFullBadge: "Максималь төгәллек",
+    glossaryTitle: "Партиялар белешмәлеге",
+    glossaryDesc: "2026 йылда сайлауҙарға барыусы рәсми сәйәси көстәр.",
+    glossaryBtn: "📚 Партиялар белешмәлеге",
+    backBtn: "← Артҡа",
+    nextBtn: "Артабан →",
+    resultsTitle: "Һеҙҙең электораль архетибығыҙ",
+    tabMatch: "Партиялар менән туры килеү",
     tabAxes: "Сәйәси шкалалар",
-    axisDesc: "Шкалалар һеҙҙең яуаптарығыҙ нигеҙендә классик сәйәси дихотомияләр буйынса төгәл урынлашыуығыҙҙы билдәләй.",
-    calibrationTitle: "🎯 Нәтижәне төгәлләштереү (факторҙар ауырлығы)",
-    calibrationDesc: "Сайлауҙар — ул өҫтөнлөктәр балансы. Һеҙҙең өсөн мөһим булған категорияларҙың ауырлығын арттырығыҙ, һәм югарылағы графиктар һеҙҙең ҡиммәттәр шкалаһын иҫәпкә алып үҙгәрәсәк.",
-    restart: "Башына",
-    share: "Уртаҡлашырға",
-    download: "Рәсемде йөкләргә",
-    toastCopied: "Нәтижәләр буферға күсерелде!",
-    toastSaved: "Рәсем уңышлы эшләнде һәм йөкләнде!",
-    toastError: "Операцияны үтәп булманы.",
-    stateDuma2026: "Кампания: Сайлауҙар 2026",
-    neutralDisclaimer: "Барлыҡ контекстар ябай һүҙҙәр менән, нейтраль һәм бер ниндәй яҡлылыҡһыҙ яҙылған.",
-    modalTitle: "Прогресты юйырғамы?",
-    modalText: "Һеҙ тестты башланығыҙ инде. Баш биткә ҡайтһағыҙ, барлыҡ яуаптарығыҙ юғаласаҡ. Дәүәм итергәме?",
+    calibrationTitle: "🎯 Нәтижәне асыҡлау (ауырлыҡтар)",
+    calibrationDesc: "Сайлауҙар — өҫтөнлөктәр балансы. Һеҙҙең өсөн мөһим булған өлкәләрҙең әһәмиәтен күтәрегеҙ.",
+    shareBtn: "Тексты уртаҡлашырға ↗",
+    downloadBtn: "Рәсемде йөкләргә 💾",
+    homeBtn: "Башына",
+    toastCopied: "Нәтижәләр күсереп алынды!",
+    toastError: "Күсереп алып булманы. Үҙегеҙ эшләп ҡарағыҙ.",
+    toastDownload: "Карточка әҙерләнә...",
+    disclaimer: "Был тест бойондороҡһоҙ симулятор булып тора һәм РФ ҮҮК менән бәйләнмәгән.",
+    contextTitle: "Һорауҙың кантәкәсте",
+    contextHide: "▲ Кантәкәсте йәшерергә",
+    contextShow: "▼ Кантәкәсте асырға",
+    skipBtn: "Һорауҙы ҡалдырырға",
+    modalResetTitle: "Прогресты юйырғамы?",
+    modalResetText: "Һеҙ тестты башланығыҙ инде. Баш биткә ҡайтһағыҙ, прогресс юғаласаҡ.",
     modalCancel: "Баш тартыу",
-    modalConfirm: "Әйе, сығырға",
-    leader: "Етәксе",
-    skip: "Һорауҙы ҡалдырыу",
-    ag: "Ҡаршы",
-    sag: "Шулай ҙа юҡ",
-    neu: "Нейтраль",
-    sad: "Шулай ҙа әйе",
-    ad: "Килешәм",
-    scoreText: "Тап килеү:"
+    modalConfirm: "Эйе, сығырға",
+    leaderLabel: "Сайлау исемлеге лидеры: ",
+    sec_I: "Дәүләт һәм хакимиәт",
+    sec_II: "Иҡтисад",
+    sec_III: "Социаль сәйәсәт",
+    sec_IV: "Армия һәм хәүефһеҙлек",
+    sec_V: "Интернет һәм цифрлы контроль",
+    sec_VI: "Мәҙәниәт һәм ҡиммәттәр",
+    sec_VII: "Тышҡы сәйәсәт",
+    sec_VIII: "Экология һәм технологиялар",
+    sec_IX: "Миграция һәм милли мәсьәлә",
+    sec_X: "Шәхси донъяға ҡараш"
   },
   cv: {
-    title: "Патшалăх Думин Суйлавĕсем 2026",
-    subtitle: "Политика Компасы",
-    intro: "Пăхăнман суйлав навигаторĕ. 2026 çулхи авăн уйăхĕнчи суйлавсенчи тĕп партисемпе пĕр килĕшӳве пĕлĕр.",
-    shortTest: "Хăвăрт тест",
-    shortDesc: "Экспресс-хаклав валли тĕп темăсемпе 20 ыйту",
-    fullTest: "Тулли анализ",
-    fullDesc: "Пĕрлешӳллĕ пурнăçăн мĕнпур 10 сферипе 100 ыйтуллă тарăн тест",
-    glossary: "📚 Партисен кĕнеки",
-    glossaryDesc: "2026 çулхи суйлавсем умĕн хальхи политика вăйĕсемпе паллашăр",
-    back: "Каялла",
-    next: "Алла →",
-    finish: "Кăтартса пар",
-    contextShow: "▼ Ыйтун кантĕкстне уç",
-    contextHide: "▲ Кантĕкстне пытар",
-    archetypeLabel: "Сирĕн суйлав архетипĕ",
-    tabParties: "Партисемпе пĕр килĕшӳ",
+    title: "Навигатор: Патшалăх Думи 2026",
+    subtitle: "Патшалăх Думине суйласси умĕн 12 тĕп парти программисене епле юратнине пĕлĕр.",
+    startShort: "Хăвăрт тест (20 ыйту)",
+    startShortDesc: "Тĕп электораль ыйтусем тăрăх экспресс-анализ.",
+    startFull: "Тулли анализ (100 ыйту)",
+    startFullDesc: "Патшалăх политикин пур 10 сферипе тарăн тĕпчев.",
+    startFullBadge: "Максималь тĕрĕслĕх",
+    glossaryTitle: "Партисен кĕнеки",
+    glossaryDesc: "2026 çулта суйлава каякан официаллă политикăллă вăйсем.",
+    glossaryBtn: "📚 Партисен кĕнеки",
+    backBtn: "← Каялла",
+    nextBtn: "Унтан тата →",
+    resultsTitle: "Сирĕн электораль архетипăр",
+    tabMatch: "Партисемпе пĕр пулни",
     tabAxes: "Политика шкалисем",
-    axisDesc: "Шкаласем сирĕн явапсем çинче никĕсленсе классикаллă политика дихотомийĕсемпе хăвăрăн тĕрĕс вырăнăра палăртаççĕ.",
-    calibrationTitle: "🎯 Кăтартăва тĕрĕслесси (факторсен виçи)",
-    calibrationDesc: "Суйлав вăл — приоритетсен балансĕ. Хăвăршăн кирлĕ категорисен виçине пысăклатăр, унтан çÿлти графиксем сирĕн хаклăхсен шкалине шута илсе тÿрех улшăнĕç.",
-    restart: "Пуçламăшне",
-    share: "Пайлан",
-    download: "Ӳкерчĕке çырса ил",
-    toastCopied: "Кăтартăвĕсене буфера копиленĕ!",
-    toastSaved: "Ӳкерчĕке ăнăçлă тунă та çырса илнĕ!",
-    toastError: "Ӗçе тума май пулмарĕ.",
-    stateDuma2026: "Кампани: Суйлавсем 2026",
-    neutralDisclaimer: "Мĕнпур кантĕкстсене ансат сăмахсемпе, нейтраллă тата партиллĕ айăплавсăр çырнă.",
-    modalTitle: "Прагреса пăрахăçламалла-и?",
-    modalText: "Эсир теста пуçланиччен тăвасшăн. Тĕп страницăна таврăнсан, сирĕн явапсем çухалаççĕ. Дәвам итес-и?",
-    modalCancel: "Пăрахăçла",
-    modalConfirm: "Йә, тухмалла",
-    leader: "Лидер",
-    skip: "Ыйтăва калдырмалла",
-    ag: "Хурлани",
-    sag: "Чăн та мар",
-    neu: "Нейтраллă",
-    sad: "Чăн та çапла",
-    ad: "Килĕшетĕп",
-    scoreText: "Пĕр килĕшӳ:"
+    calibrationTitle: "🎯 Виçĕме уçăмлатни (асаматсем)",
+    calibrationDesc: "Суйлав вăл — приоритетсен балансĕ. Сирĕншĕн кирлĕ сферăсен виçĕмне ӳстерĕр.",
+    shareBtn: "Текстпа пайланмалла ↗",
+    downloadBtn: "Ӳкерчĕке тиемелле 💾",
+    homeBtn: "Пуçламăшне",
+    toastCopied: "Кăтартусем копиленчĕç!",
+    toastError: "Копилеме май килмерĕ. Хăвăр тăвăр.",
+    toastDownload: "Карточка хатĕрленет...",
+    disclaimer: "Ку тест хăй тĕллĕн суйлав симуляторĕ пулса тăрать, РФ Центризбиркомĕпе çыхăнман.",
+    contextTitle: "Ыйту контекстне",
+    contextHide: "▲ Контекстне пытармалла",
+    contextShow: "▼ Контекстне уçмалла",
+    skipBtn: "Ыйтăва каçармалла",
+    modalResetTitle: "Прагреса пăрахăçламалла-и?",
+    modalResetText: "Эсир теста пуçланă ĕнтĕ. Тĕп страницăна таврăнсан прогрес çухалать.",
+    modalCancel: "Пăрахăçлани",
+    modalConfirm: "Я, тухмалла",
+    leaderLabel: "Суйлав списокĕн лидерĕ: ",
+    sec_I: "Патшалăх тата влаç",
+    sec_II: "Экономика",
+    sec_III: "Социаллă политика",
+    sec_IV: "Çар тата хăрушсăрлăх",
+    sec_V: "Интернет тата цифрăллă контроль",
+    sec_VI: "Культура тата хаклăхсем",
+    sec_VII: "Тулаш политика",
+    sec_VIII: "Экологи тата технологисем",
+    sec_IX: "Миграци тата наци ыйтăвĕ",
+    sec_X: "Харпăр хăй тĕнчекурăмĕ"
   }
 };
 
-const SECTIONS_LOC: Record<string, Record<Lang, string>> = {
-  I: {
-    ru: "Государство и власть", en: "State & Authority", be: "Дзяржава і ўлада",
-    tt: "Дәүләт һәм хакимият", ba: "Дәүләт һәм хакимиәт", cv: "Патшалăх тата влаç"
-  },
-  II: {
-    ru: "Экономика", en: "Economy", be: "Эканоміка",
-    tt: "Икътисад", ba: "Иҡтисад", cv: "Экономика"
-  },
-  III: {
-    ru: "Социальная политика", en: "Social Policy", be: "Сацыяльная палітыка",
-    tt: "Социаль сәясәт", ba: "Социаль сәйәсәт", cv: "Социаллă политика"
-  },
-  IV: {
-    ru: "Армия и безопасность", en: "Defense & Security", be: "Армія і бяспека",
-    tt: "Армия һәм куркынычсызлык", ba: "Армия һәм хәүефһеҙлек", cv: "Çар тата хăрушсăрлăх"
-  },
-  V: {
-    ru: "Интернет и цифровой контроль", en: "Internet & Digital Control", be: "Інтэрнэт і лічбавы кантроль",
-    tt: "Интернет һәм санлы контроль", ba: "Интернет һәм санлы контроль", cv: "Инкĕрнет тата цифра тĕрĕслевĕ"
-  },
-  VI: {
-    ru: "Культура и ценности", en: "Culture & Values", be: "Культура і каштоўнасці",
-    tt: "Мәдәният һәм кыйммәтләр", ba: "Мәҙәниәт һәм ҡиммәттәр", cv: "Культура тата хаклăхсем"
-  },
-  VII: {
-    ru: "Внешняя политика", en: "Foreign Policy", be: "Знешняя палітыка",
-    tt: "Тышкы сәясәт", ba: "Тышҡы сәйәсәт", cv: "Тулаш политика"
-  },
-  VIII: {
-    ru: "Экология и технологии", en: "Ecology & Technology", be: "Экалогія і тэхналогіі",
-    tt: "Экология һәм технологияләр", ba: "Экология һәм технологиялар", cv: "Экологи тата технологисем"
-  },
-  IX: {
-    ru: "Миграция и национальный вопрос", en: "Migration & National Identity", be: "Міграцыя і нацыянальнае пытанне",
-    tt: "Миграция һәм милли мәсьәлә", ba: "Миграция һәм милли мәсьәлә", cv: "Миграци тата наци ыйтăвĕ"
-  },
-  X: {
-    ru: "Личное мировоззрение", en: "Personal Worldview", be: "Асабісты svetaпогляд",
-    tt: "Шәхси дөньяга караш", ba: "Шәхси донъяға ҡараш", cv: "Харпăр тĕнчекурăм"
-  }
-};
+
+
+
+
+
+
+
+
+
+
+
 
 const PARTIES: Party[] = [
   {
@@ -490,456 +479,107 @@ const PARTIES: Party[] = [
 
 const ARCHETYPES: Archetype[] = [
   {
-    party: "ER",
-    name: { ru: "Государственник-традиционалист", en: "State Traditionalist", be: "Дзяржаўнік-традыцыяналіст", tt: "Дәүләтчел-традиционалист", ba: "Дәүләтсел-традиционалист", cv: "Йăла-йĕркеллĕ Патшалăхçă" },
+    name: { ru: "Государственник-традиционалист", en: "State Traditionalist", be: "Дзяржаўнік-традыцыяналіст", tt: "Дәүләтче-традиционалист", ba: "Дәүләтсе-традиционалист", cv: "Патшалăхçă-традиционалист" },
     desc: {
-      ru: "Ваш приоритет — стабильность общества через сильную государственную вертикаль и сохранение традиционных семейных и духовных ценностей.",
-      en: "Your core priority is societal stability maintained by a strong centralized state and the preservation of traditional spiritual and family values.",
-      be: "Ваш прыярытэт — стабільнасць грамадства праз моцную дзяржаўную вертыкаль і захаванне традыцыйных сямейных і духоўных каштоўнасцей.",
-      tt: "Сезнең өстенлек — көчле дәүләт вертикале аша җәмгыять тотрыклылыгы һәм традицион гаилә һәм рухи кыйммәтләрне саклау.",
-      ba: "Һеҙҙең өҫтөнлөк — көслө дәүләт вертикале аша йәмәғәт тотороҡлолоғо һәм традицион ғаилә һәм рухи ҡиммәттәрҙе саҡлау.",
-      cv: "Сирĕн приоритет — вăйлă патшалăх урлă пĕрлешĕвĕн стабильноçĕ тата йăла-йĕркеллĕ хаклăхсене сыхласа хăварасси."
-    }
+      ru: "Ваш приоритет — сильное суверенное государство, традиционные ценности, общественный порядок и сильная армия.",
+      en: "Your priority is a strong sovereign state, traditional values, public order, and a robust defense capability."
+    },
+    party: "ER"
   },
   {
-    party: "KPRF",
-    name: { ru: "Советский социалист", en: "Soviet Socialist", be: "Савецкі сацыяліст", tt: "Совет социалисты", ba: "Совет socialисы", cv: "Совет Социалисчĕ" },
+    name: { ru: "Советский социалист", en: "Soviet Socialist", be: "Савецкі сацыяліст", tt: "Совет социалисты", ba: "Совет социалисты", cv: "Совет социалисчĕ" },
     desc: {
-      ru: "Вы стремитесь к равенству и социальной справедливости, считая, что государство должно контролировать экономику и гарантировать бесплатные блага.",
-      en: "You strive for equality and social justice, believing that the state should deeply regulate the economy and guarantee robust welfare and public benefits.",
-      be: "Вы імкнецеся да роўнасці і сацыяльнай справядлівасці, лічачы, што дзяржава павінна кантраляваць эканоміку і гарантаваць бесплатныя даброты.",
-      tt: "Сез тигезлеккә һәм социаль гаделлеккә омтыласыз, дәүләт икътисадны контрольдә тотарга һәм бушлай хезмәтләр гарантияләргә тиеш дип саныйсыз.",
-      ba: "Һеҙ тигеҙлеккә һәм социаль ғәҙеллеккә ынтылаһығыҙ, дәүләт иҡтисадты контрольдә тоторға һәм бушлай хеҙмәттәр гарантияларға тейеш тип санайһығыҙ.",
-      cv: "Эсир танлăхпа социаллă тĕрĕслĕхе ăнтăлатăр, патшалăх экономикана тытса тăмалла тата тӳлевсĕр пулăшусемпе тивĕçтермелле тесе шутлатăр."
-    }
+      ru: "Вы выступаете за сильную роль государства, национализацию крупных отраслей и широкие социальные гарантии по советскому стандарту.",
+      en: "You support a strong state economic role, nationalization of strategic industries, and wide social guarantees based on Soviet standards."
+    },
+    party: "KPRF"
   },
   {
-    party: "LDPR",
-    name: { ru: "Национал-популист", en: "National Populist", be: "Нацыянал-папуліст", tt: "Национал-популист", ba: "Национал-популист", cv: "Национал-популист" },
+    name: { ru: "Национал-патриот", en: "National Patriot", be: "Нацыяналіст-патрыёт", tt: "Националь-патриот", ba: "Националь-патриот", cv: "Наци-патриот" },
     desc: {
-      ru: "Ваши взгляды сочетают патриотический консерватизм, жёсткую внешнюю политику, укрепление силовых ведомств и сильный миграционный контроль.",
-      en: "Your worldview merges patriotic conservatism, an assertive foreign policy stance, strong security apparatus backing, and severe immigration rules.",
-      be: "Вашы погляды спалучаюць патрыятычны кансерватызм, жорсткую знешнюю палітыку, узмацненне сілавых ведамстваў і моцны міграцыйны кантроль.",
-      tt: "Сезнең карашларыгыз патриотик консерватизмны, катгый тышкы сәясәтне, көч ведомстволарын ныгытуны һәм катгый миграция контролен берләштерә.",
-      ba: "Һеҙҙең ҡараштарығыҙ патриотик консерватизмды, ҡаты тышҡы сәйәсәтте, көс ведомстволарын нығытыуҙы һәм ҡаты миграция контролен берләштерә.",
-      cv: "Сирĕн шухăшсем патриотсен консерватизмне, çирĕп тулаш политика курса, çар ведомствисене вăйлăлатассине тата миграци контрольне хĕстермеллине кăтартаççĕ."
-    }
+      ru: "Вы поддерживаете сильные спецслужбы, высокий оборонный бюджет, приоритет отечественных кадров и жесткий миграционный режим.",
+      en: "You support strong law enforcement, high military spending, priority for domestic labor, and highly restrictive migration policies."
+    },
+    party: "LDPR"
   },
   {
-    party: "NL",
-    name: { ru: "Умеренный прогрессист", en: "Moderate Progressist", be: "Памяркоўны прагрэсіст", tt: "Бормалы прогрессист", ba: "Йомшаҡ прогрессист", cv: "Вăтам Прогрессист" },
+    name: { ru: "Умеренный прогрессист", en: "Moderate Progressive", be: "Памяркоўны прагрэсіст", tt: "Яшьләр прогрессисты", ba: "Яңы прогрессист", cv: "Лăпкă прогрессист" },
     desc: {
-      ru: "Вы цените рыночные реформы, экономическую свободу и цифровизацию, но поддерживаете постепенные изменения без резких политических кризисов.",
-      en: "You value open market reforms, business freedoms, and digital governance, preferring gradual institutional evolution over radical disruption.",
-      be: "Вы шануеце рыначныя рэформы, эканамічную свабоду і лічбавізацыю, але падтрымліваеце паступовыя змены без рэзкіх палітычных крызісаў.",
-      tt: "Сез базар реформаларын, икътисади ирекне һәм санлы технологияләрне өстен күрәсез, әмма кискен кризисларсыз акрын үсеш тарафдары.",
-      ba: "Һеҙ баҙар реформаларын, иҡтисади иреклекте һәм санлы технологияларҙы өҫтөн күрәһегеҙ, әммә киҫкен кризисһыҙ яйлап үҫешеү яҡлы.",
-      cv: "Эсир рынок реформисене, экономика ирĕклĕхне тата цифра технологийĕсене хаклатăр, анчах та улшăнусене политикăлла кризиссăр, майĕпен тумалла тесе шутлатăр."
-    }
+      ru: "Вы поддерживаете реформы в интересах бизнеса, развитие инноваций, ИТ-сектора и обновление кадров мирным путем.",
+      en: "You support business-friendly reforms, innovation-driven growth, modern technologies, and evolutionary political renewal."
+    },
+    party: "NL"
   },
   {
-    party: "SR",
     name: { ru: "Социал-демократ", en: "Social Democrat", be: "Сацыял-дэмакрат", tt: "Социал-демократ", ba: "Социал-демократ", cv: "Социал-демократ" },
     desc: {
-      ru: "Вы поддерживаете сильную социальную политику государства, помощь нуждающимся и прогрессивные налоги при сохранении патриотического курса.",
-      en: "You support strong welfare policies, aid for the disadvantaged, and progressive tax mechanisms integrated with support for national sovereignty.",
-      be: "Вы падтрымліваеце моцную сацыяльную палітыку дзяржавы, дапамогу тым, хто мае патрэбу, і прагрэсіўныя падаткі пры захаванні патрыятычнага курсу.",
-      tt: "Сез дәүләтнең көчле социаль сәясәтен, мохтаҗларга ярдәмне һәм прогрессив салымнарны, шулай ук патриотик курсны яклауны хуплыйсыз.",
-      ba: "Һеҙ дәүләттең көслө социаль сәйәсәтен, мохтаждарға ярҙамды һәм прогрессив һалымдарҙы, шулай уҡ патриотик курс ҡалыуын хуплайһығыҙ.",
-      cv: "Эсир патшалăхăн социаллă пулăшу ĕçĕсене, чухăнсен налук çăмăллăхĕсене тата çав вăхăтрах патриотлă курс сыхласа хăварассине те хуплатăр."
-    }
+      ru: "Вам близка концепция социального государства, справедливого налогообложения богатства при сохранении патриотического курса.",
+      en: "You lean towards social democracy, fair progressive taxation, welfare protection, and patriotic state integration."
+    },
+    party: "SR"
   },
   {
-    party: "YAB",
-    name: { ru: "Либерально-правовой вектор", en: "Liberal-Democratic View", be: "Ліберальна-прававы вектар", tt: "Либераль-хокукый юнәлеш", ba: "Либераль-хоҡуҡи йүнәлеш", cv: "Либерал-правовой Вектор" },
+    name: { ru: "Либерал-европеист", en: "Liberal Europeanist", be: "Ліберал-еўрапеіст", tt: "Либерал-европеист", ba: "Либерал-европеист", cv: "Либерал-европеист" },
     desc: {
-      ru: "Ваши приоритеты — права человека, ограничение государственной цензуры, независимый суд, свобода прессы и открытость миру.",
-      en: "Your ultimate priorities are individual human rights, limiting state censorship, fully independent courts, press freedom, and openness to the world.",
-      be: "Вашы прыярытэты — правы чалавека, абмежаванне дзяржаўнай цэнзуры, незалежны суд, свабода прэсы і адкрытасць свету.",
-      tt: "Сезнең өстенлекләр — кеше хокуклары, дәүләт цензурасын чикләү, бәйсез суд, матбугат иреге һәм дөньяга ачыклык.",
-      ba: "Һеҙҙең өҫтөнлөктәр — кеше хоҡуҡтары, дәүләт цензураһын сикләү, бәйһеҙ суд, матбуғат иреклеге һәм донъяға асыҡлыҡ.",
-      cv: "Сирĕн приоритетсем — этем прависем, патшалăх цензурине чакарасси, ирĕклĕ суд йĕркелесси, пичет ирĕклĕхĕ тата тĕнче валли уçăмлăх."
-    }
-  },
-  {
-    party: "RPPS",
-    name: { ru: "Социал-патерналист", en: "Social Paternalist", be: "Сацыял-патэрналіст", tt: "Социаль-патерналист", ba: "Социаль-патерналист", cv: "Социал-патерналист" },
-    desc: {
-      ru: "Вы считаете заботу о человеке и социальную справедливость главным долгом государства перед обществом.",
-      en: "You believe that care for every individual and solid social welfare is the ultimate moral obligation of the state to its society.",
-      be: "Вы лічыце клопат пра чалавека і сацыяльную справядлівасць галоўным абавязкам дзяржавы перад грамадствам.",
-      tt: "Сез кеше турында кайгыртуны һәм социаль гаделлекне дәүләтнең җәмгыять алдындагы иң мөһим бурычы дип саныйсыз.",
-      ba: "Һеҙ кеше тураһында ҡайғыртыуҙы һәм социаль ғәҙеллекте дәүләттең йәмәғәт алдындағы иң мөһим бурысы тип санайһығыҙ.",
-      cv: "Эсир этемшĕн тăрăшассине тата социаллă тĕрĕслĕхе патшалăхăн пĕрлешӳ умĕнчи чи пысăк тивĕçĕ тесе шутлатăр."
-    }
-  },
-  {
-    party: "KR",
-    name: { ru: "Радикальный коммунист", en: "Orthodox Communist", be: "Радыкальны камуніст", tt: "Радикаль коммунист", ba: "Радикаль коммунист", cv: "Радикаллă Коммунист" },
-    desc: {
-      ru: "Вы стоите на классических ленинских позициях: плановая экономика, полный запрет частных монополий и воссоздание советской системы.",
-      en: "You hold orthodox Marxist-Leninist views, demanding a return to full socialist state planning and the complete eradication of private monopolies.",
-      be: "Вы стаіце на класічных ленінскіх пазіцыях: планавая эканоміка, поўны забароны прыватных манаполій і аднаўленне савецкай сістэмы.",
-      tt: "Сез классик Ленин позицияләрендә торасыз: планлы икътисад, шәхси монополияләрне бөтенләй тыю һәм совет системасын торгызу.",
-      ba: "Һеҙ классик Ленин позицияларында тораһығыҙ: планлы иҡтисад, шәхси монополияларҙы бөтөнләй тыйыу һәм совет системаһын тергеҙеү.",
-      cv: "Эсир классикаллă Ленин шухăшĕсемпе çунатăр: планлă экономика, пысăк усламçăсен хуçалăхĕсене чакарасси тата совет йĕркине тавăрасси."
-    }
-  },
-  {
-    party: "ZEL",
-    name: { ru: "Эко-модернист", en: "Eco-Modernist", be: "Эка-мадэрніст", tt: "Эко-модернист", ba: "Эко-модернист", cv: "Эко-модернист" },
-    desc: {
-      ru: "Ваш приоритет — охрана природы, развитие чистых технологий и защита экологических прав граждан.",
-      en: "Your core priority is nature preservation, supporting clean technologies, and institutional protection of environmental rights.",
-      be: "Ваш прыярытэт — ахова прыроды, развіццё чыстых тэхналогій і абарона экалагічных правоў грамадзян.",
-      tt: "Сезнең өстенлек — табигатьне саклау, чиста технологияләр үстерү һәм гражданнарның экологик хокукларын яклау.",
-      ba: "Һеҙҙең өҫтөнлөк — тәбиғәтте саҡлау, таҙа технологиялар үҫтереү һәм граждандың экологик хоҡуғын яҡлау.",
-      cv: "Сирĕн приоритет — çутçанталăка сыхласа хăварасси, таса технологисене аталантарасси тата çынсен экологи прависене хӳтĕлесси."
-    }
-  },
-  {
-    party: "ROD",
-    name: { ru: "Имперский консерватор", en: "Sovereign Conservative", be: "Імперскі кансерватар", tt: "Империячел консерватор", ba: "Империясыл консерватор", cv: "Импери Консерваторĕ" },
-    desc: {
-      ru: "Вы выступаете за сильный суверенитет, военную мощь ОПК и жёсткий государственный контроль над границами.",
-      en: "You support absolute military sovereignty, defense complex growth, and robust border control protections.",
-      be: "Вы выступаеце за моцны суверэнітэт, вайсковую моц АПК і жорсткі дзяржаўны кантроль над межамі.",
-      tt: "Сез көчле суверенитет, хәрби куәт һәм чикләрне дәүләт тарафыннан катгый контрольдә тоту яклы.",
-      ba: "Һеҙ көслө суверенитет, хәрби ҡеүәт һәм чикләрҙе дәүләт тарафынан ҡаты контрольдә тотоу яҡлы.",
-      cv: "Эсир патшалăхăн тулли суверенитечĕшĕн, çар вăйĕшĕн тата патшалăх чиккисене çирĕп тĕрĕслесе тăрассишĕн кĕрешетĕр."
-    }
-  },
-  {
-    party: "PPD",
-    name: { ru: "Цифровой технократ", en: "Digital Technocrat", be: "Лічбавы тэхнакрат", tt: "Санлы технократ", ba: "Санлы технократ", cv: "Цифра Технокрачĕ" },
-    desc: {
-      ru: "Вы верите в автоматизацию процессов, уменьшение роли чиновников через ИИ и прямую интернет-демократию.",
-      en: "You believe in workflow automation, reducing bureaucratic footprint using AI, and implementing direct online democracy.",
-      be: "Вы верыце ў аўтаматызацыю працэсаў, памяншэнне ролі чыноўнікаў праз ІІ і прамую інтэрнэт-дэмакратыю.",
-      tt: "Сез процессларны автоматлаштыруга, ясалма интеллект аша чиновниклар ролен киметүгә һәм туры интернет-демократиягә ышанасыз.",
-      ba: "Һеҙ процесстарҙы автоматлаштырыуға, яһалма интеллект аша чиновник ролен кәметеүгә һәм тура интернет-демократияға ышанаһығыҙ.",
-      cv: "Эсир процесене автоматлаштарассине, ИИ пулăшăвĕпе чиновниксен вăйне чакарассине тата тӳрĕ инкĕрнет-демократине ĕненетĕр."
-    }
-  },
-  {
-    party: "GP",
-    name: { ru: "Бизнес-консерватор", en: "Business Conservative", be: "Бізнес-кансерватар", tt: "Бизнес-консерватор", ba: "Бизнес-консерватор", cv: "Бизнес-консерватор" },
-    desc: {
-      ru: "Вы поддерживаете полную экономическую свободу для предпринимателей при сохранении стабильного патриотического курса.",
-      en: "You support full economic freedom and deregulation for entrepreneurs wrapped with state-supportive loyalty.",
-      be: "Вы падтрымліваеце поўную эканамічную свабоду для прадпрымальнікаў пры захаванні стабільнага патрыятычнага курсу.",
-      tt: "Сез эшмәкәрләр өчен тулы икътисади ирекне, әмма тотрыклы патриотик курсны саклап калуны яклыйсыз.",
-      ba: "Һеҙ эшҡыуарҙар өсөн тулы иҡтисади иреклекте, әммә тотороҡло патриотик курс ҡалыуын яҡлайһығыҙ.",
-      cv: "Эсир усламçăсемшĕн тулли экономика ирĕклĕхне пулăшатăр, анчах та çирĕп патриотлă сукмакран пăрăнмалла мар тесе шутлатăр."
-    }
+      ru: "Вы ставите права человека выше государственных интересов, поддерживаете свободный рынок, независимые суды и мирный диалог со всем миром.",
+      en: "You value individual human rights above state authority, supporting free markets, independent courts, and peaceful global cooperation."
+    },
+    party: "YAB"
   }
 ];
 
 const AXES: Axis[] = [
   {
-    label: { ru: "Государственник", en: "Statist", be: "Дзяржаўнік", tt: "Дәүләтчел", ba: "Дәүләтсел", cv: "Патшалăхçă" },
-    opposite: { ru: "Либерал", en: "Liberal", be: "Ліберал", tt: "Либераль", ba: "Либераль", cv: "Либерал" },
+    label: { ru: "Государственник", en: "Statist", be: "Дзяржаўнік", tt: "Дәүләтче", ba: "Дәүләтсе", cv: "Патшалăхçă" },
+    opposite: { ru: "Либерал", en: "Liberal", be: "Ліберал", tt: "Либерал", ba: "Либерал", cv: "Либерал" },
     qs: [
-      { q: 1, dir: 1 }, { q: 4, dir: 1 }, { q: 6, dir: 1 }, { q: 7, dir: 1 },
-      { q: 33, dir: 1 }, { q: 36, dir: 1 }, { q: 37, dir: 1 }, { q: 41, dir: 1 },
-      { q: 42, dir: 1 }, { q: 43, dir: 1 }, { q: 46, dir: 1 }, { q: 54, dir: 1 },
-      { q: 60, dir: 1 }, { q: 91, dir: 1 }, { q: 97, dir: 1 }
+      { q: 1, dir: -1 }, { q: 4, dir: -1 }, { q: 6, dir: -1 }, { q: 7, dir: -1 },
+      { q: 33, dir: -1 }, { q: 36, dir: -1 }, { q: 37, dir: -1 }, { q: 41, dir: -1 },
+      { q: 42, dir: -1 }, { q: 43, dir: -1 }, { q: 46, dir: -1 }, { q: 54, dir: -1 },
+      { q: 60, dir: -1 }, { q: 91, dir: -1 }, { q: 97, dir: -1 },
+      { q: 3, dir: 1 }, { q: 5, dir: 1 }, { q: 8, dir: 1 }, { q: 10, dir: 1 },
+      { q: 47, dir: 1 }, { q: 48, dir: 1 }, { q: 92, dir: 1 }
     ]
   },
   {
-    label: { ru: "Социалист", en: "Socialist", be: "Сацыяліст", tt: "Социалистик", ba: "Социалистик", cv: "Социалисчĕ" },
-    opposite: { ru: "Рыночник", en: "Capitalist", be: "Рыначнік", tt: "Базарчы", ba: "Баҙарсы", cv: "Рынокçă" },
+    label: { ru: "Социалист", en: "Socialist", be: "Сацыяліст", tt: "Социалист", ba: "Социалист", cv: "Социалист" },
+    opposite: { ru: "Рыночник", en: "Capitalist", be: "Рыначнік", tt: "Рыночник", ba: "Рыночник", cv: "Рыночник" },
     qs: [
-      { q: 11, dir: 1 }, { q: 12, dir: 1 }, { q: 15, dir: 1 }, { q: 16, dir: 1 },
-      { q: 18, dir: 1 }, { q: 21, dir: 1 }, { q: 22, dir: 1 }, { q: 23, dir: 1 },
-      { q: 27, dir: 1 }, { q: 28, dir: 1 }, { q: 29, dir: 1 }, { q: 30, dir: 1 },
-      { q: 93, dir: 1 }, { q: 95, dir: 1 }, { q: 99, dir: 1 }
+      { q: 11, dir: -1 }, { q: 12, dir: -1 }, { q: 15, dir: -1 }, { q: 16, dir: -1 },
+      { q: 18, dir: -1 }, { q: 21, dir: -1 }, { q: 22, dir: -1 }, { q: 23, dir: -1 },
+      { q: 27, dir: -1 }, { q: 28, dir: -1 }, { q: 29, dir: -1 }, { q: 30, dir: -1 },
+      { q: 93, dir: -1 }, { q: 95, dir: -1 }, { q: 99, dir: -1 },
+      { q: 13, dir: 1 }, { q: 14, dir: 1 }, { q: 17, dir: 1 }, { q: 26, dir: 1 },
+      { q: 96, dir: 1 }
     ]
   },
   {
-    label: { ru: "Традиционалист", en: "Traditionalist", be: "Традыцыяналіст", tt: "Традиционалист", ba: "Традиционалист", cv: "Йăлаçă" },
+    label: { ru: "Традиционалист", en: "Traditionalist", be: "Традыцыяналіст", tt: "Традиционалист", ba: "Традиционалист", cv: "Традиционалист" },
     opposite: { ru: "Прогрессист", en: "Progressive", be: "Прагрэсіст", tt: "Прогрессист", ba: "Прогрессист", cv: "Прогрессист" },
     qs: [
-      { q: 25, dir: 1 }, { q: 51, dir: 1 }, { q: 52, dir: 1 }, { q: 53, dir: 1 },
-      { q: 57, dir: 1 }, { q: 58, dir: 1 }, { q: 83, dir: 1 }, { q: 85, dir: 1 },
-      { q: 86, dir: 1 }, { q: 88, dir: 1 }, { q: 89, dir: 1 }
+      { q: 25, dir: -1 }, { q: 51, dir: -1 }, { q: 52, dir: -1 }, { q: 53, dir: -1 },
+      { q: 57, dir: -1 }, { q: 58, dir: -1 }, { q: 83, dir: -1 }, { q: 85, dir: -1 },
+      { q: 86, dir: -1 }, { q: 88, dir: -1 }, { q: 89, dir: -1 },
+      { q: 24, dir: 1 }, { q: 55, dir: 1 }, { q: 59, dir: 1 }, { q: 82, dir: 1 },
+      { q: 87, dir: 1 }
     ]
   },
   {
     label: { ru: "Изоляционист", en: "Sovereignist", be: "Ізаляцыяніст", tt: "Изоляционист", ba: "Изоляционист", cv: "Изоляционист" },
     opposite: { ru: "Глобалист", en: "Globalist", be: "Глабаліст", tt: "Глобалист", ba: "Глобалист", cv: "Глобалист" },
     qs: [
-      { q: 5, dir: -1 }, { q: 20, dir: 1 }, { q: 61, dir: 1 }, { q: 62, dir: -1 },
-      { q: 63, dir: 1 }, { q: 64, dir: -1 }, { q: 66, dir: 1 }, { q: 67, dir: -1 },
-      { q: 69, dir: -1 }, { q: 70, dir: 1 }, { q: 75, dir: 1 }, { q: 77, dir: 1 }
+      { q: 20, dir: -1 }, { q: 61, dir: -1 }, { q: 63, dir: -1 }, { q: 65, dir: -1 },
+      { q: 66, dir: -1 }, { q: 68, dir: -1 }, { q: 70, dir: -1 }, { q: 75, dir: -1 },
+      { q: 77, dir: -1 },
+      { q: 5, dir: 1 }, { q: 62, dir: 1 }, { q: 64, dir: 1 }, { q: 67, dir: 1 },
+      { q: 69, dir: 1 }, { q: 72, dir: 1 }
     ]
   }
 ];
 
-const MATRIX: Record<number, number[]> = {
-  1:  [5,4,5,2,4,1, 4,4,4,5,2,4], 2:  [2,5,3,4,4,5, 3,4,3,2,5,4], 3:  [2,3,2,4,3,5, 4,2,4,2,5,4],
-  4:  [5,4,5,2,4,1, 4,5,3,5,2,4], 5:  [2,4,2,5,3,5, 3,2,3,1,4,3], 6:  [4,2,4,1,3,1, 3,5,3,5,2,4],
-  7:  [5,2,4,3,2,1, 4,2,4,5,5,4], 8:  [2,3,2,4,3,5, 3,4,3,2,4,3], 9:  [3,5,4,4,5,4, 5,5,5,4,5,5],
-  10: [1,3,2,5,3,5, 2,3,3,1,4,3], 11: [3,5,4,2,5,4, 5,5,4,4,3,2], 12: [2,5,4,1,4,1, 5,5,4,4,2,2], 
-  13: [3,2,3,5,3,4, 4,3,5,4,5,5], 14: [2,4,3,5,3,4, 3,2,4,2,5,5], 15: [5,5,4,2,4,2, 5,5,4,5,3,3], 
-  16: [3,5,4,2,5,3, 5,5,4,4,3,3], 17: [4,2,3,5,3,5, 2,1,4,3,5,5], 18: [3,5,4,2,5,2, 5,5,3,4,2,2], 
-  19: [4,5,4,2,4,2, 4,5,3,4,3,3], 20: [5,4,5,2,4,2, 5,5,4,5,3,4], 21: [4,5,3,3,5,4, 5,5,4,4,3,3], 
-  22: [2,5,4,2,5,3, 5,5,4,4,3,3], 23: [5,4,5,4,5,3, 5,5,5,5,4,4], 24: [3,4,2,5,3,5, 3,4,4,2,5,4], 
-  25: [5,4,5,2,4,2, 4,5,4,5,3,4], 26: [3,2,3,5,3,4, 3,1,4,3,5,5], 27: [2,5,3,1,4,2, 5,5,4,4,2,2], 
-  28: [5,4,5,3,5,3, 5,5,5,5,4,4], 29: [3,5,4,3,5,4, 5,5,4,4,4,3], 30: [4,5,3,3,5,4, 5,5,4,4,3,3],
-  31: [5,4,5,3,4,1, 4,5,4,5,3,4], 32: [4,4,4,4,4,3, 3,2,4,3,5,4], 33: [5,4,5,3,4,2, 4,5,3,5,3,4],
-  34: [5,3,5,2,3,1, 5,5,4,5,4,5], 35: [1,2,1,4,2,5, 2,1,3,1,4,2], 36: [5,4,5,3,4,2, 3,5,3,5,2,4],
-  37: [5,4,5,2,4,1, 4,5,4,5,3,4], 38: [5,5,5,4,5,3, 5,5,4,5,4,4], 39: [4,4,5,2,4,1, 4,5,3,5,3,4],
-  40: [2,2,2,4,3,5, 3,2,4,1,5,3], 41: [5,3,4,1,3,1, 4,5,3,5,2,3], 42: [5,4,5,2,4,1, 4,5,4,5,2,4], 
-  43: [5,3,4,1,3,1, 3,5,3,5,2,3], 44: [5,4,4,4,4,3, 4,4,5,4,5,5], 45: [4,4,4,2,3,2, 3,4,3,4,2,3], 
-  46: [5,4,5,2,4,1, 4,5,4,5,2,4], 47: [1,3,2,5,3,5, 2,1,3,1,5,3], 48: [2,3,2,5,3,5, 2,1,3,1,5,3], 
-  49: [5,3,4,2,3,1, 4,5,4,5,5,4], 50: [5,4,4,5,4,4, 4,5,4,4,3,3], 51: [5,3,5,1,4,1, 4,3,3,5,2,4], 
-  52: [2,4,2,5,3,5, 4,5,4,5,3,4], 53: [5,3,4,2,3,1, 4,5,4,5,3,4], 54: [5,4,5,2,4,1, 4,5,3,5,2,3], 
-  55: [4,3,5,2,3,2, 3,5,4,2,5,4], 56: [5,3,5,1,3,1, 4,5,3,5,3,3], 57: [4,5,4,2,4,2, 5,5,4,5,4,4], 
-  58: [5,4,5,2,4,1, 4,5,4,5,3,4], 59: [3,4,3,4,3,4, 4,4,5,3,4,4], 60: [5,4,5,3,4,2, 4,5,4,5,3,4],
-  61: [5,4,4,4,4,3, 5,5,5,5,4,5], 62: [2,2,1,5,2,5, 2,1,3,1,4,3], 63: [5,4,5,2,4,1, 4,5,3,5,3,4],
-  64: [2,3,2,5,3,5, 3,2,4,1,4,3], 65: [5,4,5,3,4,2, 5,5,4,5,3,4], 66: [4,3,5,2,3,1, 5,5,4,5,3,5],
-  67: [2,2,1,5,3,5, 3,1,4,1,5,3], 68: [5,4,5,2,4,1, 5,5,4,5,3,4], 69: [2,2,1,4,3,5, 2,1,3,1,4,3],
-  70: [5,4,5,3,4,2, 4,5,4,5,4,4], 71: [3,4,2,5,4,5, 4,4,5,2,4,3], 72: [2,3,1,4,3,5, 4,3,5,2,5,4], 
-  73: [5,5,5,4,5,3, 4,5,4,5,4,4], 74: [4,4,2,5,4,5, 5,5,5,4,5,4], 75: [3,3,1,5,3,5, 3,4,2,5,2,3], 
-  76: [5,4,5,2,4,1, 4,5,4,5,4,4], 77: [5,3,4,5,4,4, 4,5,4,5,4,4], 78: [3,3,3,5,3,4, 4,3,5,3,4,4], 
-  79: [5,5,4,5,4,4, 4,5,4,5,5,4], 80: [3,4,3,4,4,4, 4,4,4,4,5,5], 81: [4,4,5,2,4,1, 5,4,4,5,3,4], 
-  82: [4,2,2,5,3,4, 4,5,5,3,4,4], 83: [5,5,5,3,5,3, 5,5,4,5,4,4], 84: [5,4,3,5,4,5, 5,5,4,5,3,4], 
-  85: [4,4,5,2,4,1, 5,5,4,5,4,4], 86: [5,4,5,3,4,2, 4,3,3,5,3,3], 87: [3,2,1,5,3,5, 4,5,5,3,4,4], 
-  88: [4,4,5,3,4,3, 4,3,3,5,2,4], 89: [4,4,5,2,4,2, 4,3,3,5,3,4], 90: [4,3,5,3,3,2, 5,5,4,5,4,4],
-  91: [5,4,5,2,4,2, 3,5,3,5,2,3], 92: [2,2,1,5,3,5, 3,2,4,2,5,4], 93: [3,5,3,2,5,4, 5,5,4,5,4,4],
-  94: [5,5,5,2,4,1, 5,5,4,5,3,4], 95: [5,4,5,2,4,1, 5,5,5,5,4,4], 96: [2,4,3,5,3,5, 2,1,3,3,5,5],
-  97: [5,3,4,5,4,4, 4,5,3,5,3,4], 98: [5,4,5,3,4,2, 5,5,4,5,5,5], 99: [2,4,2,5,3,5, 5,5,4,5,4,3],
-  100:[2,2,1,5,3,5, 2,1,3,1,4,2],
-};
-
-const SHORT_INDICES = [1, 2, 11, 15, 17, 21, 24, 31, 35, 41, 47, 51, 55, 61, 62, 71, 81, 91, 93, 95];
-
-const ALL_QUESTIONS: Question[] = [
-  {
-    n: 1, sec: "I",
-    text: {
-      ru: "Президенту нужно предоставить больше законодательных полномочий.",
-      en: "The President should be granted more legislative powers."
-    },
-    detail: {
-      ru: "Это дилемма о балансе власти: сильная центральная исполнительная вертикаль против системы независимых сдержек со стороны парламента.",
-      en: "A choice between a highly centralized executive branch versus a balance of powers with parliamentary oversight."
-    }
-  },
-  {
-    n: 2, sec: "I",
-    text: {
-      ru: "Роль парламента в государственном управлении должна быть значительно усилена.",
-      en: "The role of parliament in state governance should be significantly strengthened."
-    },
-    detail: {
-      ru: "Рассматривается вопрос о расширении влияния народных представителей на утверждение бюджета, министров и законов.",
-      en: "Considers expanding the influence of elected representatives over the budget, cabinet appointments, and legislation."
-    }
-  },
-  {
-    n: 11, sec: "II",
-    text: {
-      ru: "Крупные корпорации и богатые граждане должны платить налоги по значительно более высокой ставке.",
-      en: "Large corporations and wealthy citizens should pay taxes at a significantly higher rate."
-    },
-    detail: {
-      ru: "Принцип прогрессивной шкалы налогообложения: снижение финансового неравенства за счет перераспределения доходов богатых в пользу социальных нужд.",
-      en: "The principle of progressive taxation to reduce wealth disparity by redistributing top incomes to fund social welfare programs."
-    }
-  },
-  {
-    n: 15, sec: "II",
-    text: {
-      ru: "Стратегические отрасли экономики должны находиться исключительно под контролем государства.",
-      en: "Strategic sectors of the economy should be exclusively under state control."
-    },
-    detail: {
-      ru: "Энергетика, транспорт и добыча ресурсов: гарантированная стабильность и безопасность под управлением государства против эффективности частного менеджмента.",
-      en: "Energy, transport, and resources: guaranteed stability and safety under state command versus the competitive efficiency of private management."
-    }
-  },
-  {
-    n: 17, sec: "II",
-    text: {
-      ru: "Свободная рыночная экономика — наиболее эффективный путь развития страны.",
-      en: "A free market economy is the most efficient path for the country's development."
-    },
-    detail: {
-      ru: "Частная инициатива, конкуренция и минимальное вмешательство госорганов в ценообразование против планового регулирования.",
-      en: "Private initiative, open competition, and minimal state intervention in price-setting versus planned regulatory pricing."
-    }
-  },
-  {
-    n: 21, sec: "III",
-    text: {
-      ru: "Государство обязано существенно увеличить размер пособий и выплат малообеспеченным слоям населения.",
-      en: "The state must significantly increase welfare benefits for low-income citizens."
-    },
-    detail: {
-      ru: "Социальные обязательства бюджета: борьба с бедностью и сглаживание неравенства за счет государственных расходов.",
-      en: "Budgetary welfare obligations: eradicating poverty and smoothing wealth disparity using targeted state spending."
-    }
-  },
-  {
-    n: 24, sec: "III",
-    text: {
-      ru: "Женщины должны иметь безоговорочное право на прерывание беременности (аборты).",
-      en: "Women must have an unconditional right to voluntary termination of pregnancy (abortion)."
-    },
-    detail: {
-      ru: "Право женщины на репродуктивный выбор и распоряжение собственным телом против консервативного взгляда о защите жизни с момента зачатия.",
-      en: "A woman's right to reproductive choice and bodily autonomy versus conservative views protecting prenatal life."
-    }
-  },
-  {
-    n: 31, sec: "IV",
-    text: {
-      ru: "Текущие высокие расходы на армию и оборонную промышленность полностью оправданы.",
-      en: "The current high expenditures on the military and defense industry are fully justified."
-    },
-    detail: {
-      ru: "Приоритет национальной безопасности, укрепления границ и оборонной независимости в условиях внешних угроз.",
-      en: "Prioritizing national defense, securing borders, and maintaining strategic military autonomy under international friction."
-    }
-  },
-  {
-    n: 35, sec: "IV",
-    text: {
-      ru: "Необходимо сократить военные расходы в пользу медицины, образования и социальной сферы.",
-      en: "It is necessary to reduce military spending in favor of healthcare, education, and social services."
-    },
-    detail: {
-      ru: "Перераспределение бюджета с силовых ведомств на развитие человеческого капитала и повышение качества жизни граждан.",
-      en: "Shifting state budget allocations from defensive apparatus to direct human capital development and citizens' living standards."
-    }
-  },
-  {
-    n: 41, sec: "V",
-    text: {
-      ru: "Государственный контроль над информационным пространством интернета необходим ради стабильности.",
-      en: "State control over the digital space of the internet is necessary for national stability."
-    },
-    detail: {
-      ru: "Предотвращение экстремизма, дезинформации и внешнего деструктивного влияния против права на свободный обмен информацией.",
-      en: "Preventing extremism, hostile misinformation, and foreign digital subversion versus the right to free information exchange."
-    }
-  },
-  {
-    n: 47, sec: "V",
-    text: {
-      ru: "Свобода доступа к информации в интернете важнее любых государственных ограничений.",
-      en: "Freedom of access to information on the internet is more important than any state restrictions."
-    },
-    detail: {
-      ru: "Право граждан на анонимность, использование средств обхода блокировок и защиту персональных данных от надзора.",
-      en: "The right of citizens to digital anonymity, censorship-circumvention tools, and guarding personal data from surveillance."
-    }
-  },
-  {
-    n: 51, sec: "VI",
-    text: {
-      ru: "Светское государство должно активно поддерживать институты традиционных религий.",
-      en: "The secular state should actively support the institutions of traditional religions."
-    },
-    detail: {
-      ru: "Укрепление моральных устоев общества и сохранение исторического наследия через партнерство религиозных организаций и государства.",
-      en: "Strengthening the moral fabric of society and preserving historical legacy via targeted partnership between state and religious bodies."
-    }
-  },
-  {
-    n: 55, sec: "VI",
-    text: {
-      ru: "Религиозные организации не должны иметь никакого влияния на государственную политику.",
-      en: "Religious organizations must have zero influence over state policies."
-    },
-    detail: {
-      ru: "Строгий конституционный принцип светскости образования, законодательства и равенства граждан вне зависимости от вероисповедания.",
-      en: "Strict constitutional secularism in public education, law-making, and equality of all citizens regardless of creed."
-    }
-  },
-  {
-    n: 61, sec: "VII",
-    text: {
-      ru: "Россия должна настойчиво стремиться к построению многополярной системы мира.",
-      en: "Russia must consistently strive to build a multipolar world order."
-    },
-    detail: {
-      ru: "Формирование суверенных геополитических союзов, ослабление глобального влияния западных стран и укрепление БРИКС.",
-      en: "Cultivating sovereign geopolitical alliances, curbing Western global influence, and reinforcing BRICS integration."
-    }
-  },
-  {
-    n: 62, sec: "VII",
-    text: {
-      ru: "Приоритетом внешней политики должна стать нормализация отношений со всеми странами Запада.",
-      en: "The priority of foreign policy should be the normalization of relations with all Western countries."
-    },
-    detail: {
-      ru: "Восстановление открытой торговли, диалога по безопасности, снижение конфронтации и постепенная отмена санкций.",
-      en: "Re-establishing free trade, security dialogue channels, minimizing military friction, and pursuing sanction relief."
-    }
-  },
-  {
-    n: 71, sec: "VIII",
-    text: {
-      ru: "Защита экологии важнее форсированного промышленного и экономического роста.",
-      en: "Environmental protection is more important than forced industrial and economic growth."
-    },
-    detail: {
-      ru: "Введение жестких экологических стандартов и ограничений для заводов против целей ускоренного развития производств.",
-      en: "Deploying strict environmental compliance standards and limits on factories versus prioritizing rapid manufacturing expansion."
-    }
-  },
-  {
-    n: 81, sec: "IX",
-    text: {
-      ru: "Стране требуется проведение значительно более жёсткой миграционной политики.",
-      en: "The country requires a significantly tighter migration policy."
-    },
-    detail: {
-      ru: "Усиление визового контроля со странами СНГ, жесткие требования по интеграции и ограничение квот на рабочую силу.",
-      en: "Stricter visa regimes for CIS nations, mandatory cultural integration laws, and limited labor quotas."
-    }
-  },
-  {
-    n: 91, sec: "X",
-    text: {
-      ru: "Наличие сильного национального лидера важнее соблюдения полной политической конкуренции.",
-      en: "A strong national leader is more important than maintaining absolute political competition."
-    },
-    detail: {
-      ru: "Эффективность централизованного принятия решений в сложные периоды против принципа постоянной сменяемости и плюрализма.",
-      en: "The speed and efficacy of centralized crisis management versus perpetual systemic pluralism and administrative rotation."
-    }
-  },
-  {
-    n: 93, sec: "X",
-    text: {
-      ru: "Необходимо значительно ограничить влияние крупного олигархического капитала на принятие решений.",
-      en: "It is necessary to significantly restrict the influence of big oligarchic capital on state decision-making."
-    },
-    detail: {
-      ru: "Борьба с лоббированием интересов сверхбогатых групп во власти, вывод крупного бизнеса из политического контура.",
-      en: "Curbing lobbying networks of ultra-wealthy elites and detaching corporate conglomerates from direct political leverage."
-    }
-  },
-  {
-    n: 95, sec: "X",
-    text: {
-      ru: "Разрыв в доходах между богатыми и бедными в нашей стране недопустимо велик.",
-      en: "The income gap between the rich and the poor in our country is unacceptably high."
-    },
-    detail: {
-      ru: "Оценка уровня неравенства и запрос общества на социально справедливое перераспределение национальных благ.",
-      en: "Assessing extreme inequality and social demand for the redistribution of national resources to bridge the wealth gap."
-    }
-  }
-];
-
-// Fallback list of questions statically constructed to ensure all 100 questions are fully structured
 const QUESTION_TEXTS_RU: Record<number, { t: string; d: string }> = {
+  1: { t: "Президенту нужно дать больше полномочий.", d: "Определение баланса сил. Сторонники верят в сильную единоличную вертикаль в кризисы, оппоненты — в сильный парламент и систему сдерживания." },
+  2: { t: "Парламент в России слишком слабый.", d: "Вопрос расширения влияния Думы. Оппозиция требует расширить полномочия народных избранников, сторонники стабильности видят риск дезорганизации." },
   3: { t: "Губернаторов нужно избирать максимально независимо.", d: "Прямые выборы региональных глав без фильтра власти." },
   4: { t: "Сильная вертикаль власти важнее региональной автономии.", d: "Спор между централизацией управления и правами субъектов федерации." },
   5: { t: "Политическая оппозиция должна иметь больше возможностей.", d: "Вопрос об уровне допуска альтернативных кандидатов к выборам." },
@@ -948,45 +588,58 @@ const QUESTION_TEXTS_RU: Record<number, { t: string; d: string }> = {
   8: { t: "Судебная система недостаточно независима.", d: "Принцип разделения властей и автономия судей." },
   9: { t: "Чиновникам нужно ограничить роскошь законодательно.", d: "Запрос на антикоррупционные нормы." },
   10: { t: "Сроки пребывания у власти должны быть ограничены строже.", d: "Вопрос сменяемости элит." },
+  11: { t: "Крупные компании должны платить больше налогов.", d: "Введение прогрессивной шкалы налогообложения на сверхдоходы." },
   12: { t: "Приватизация 1990-х была ошибкой.", d: "Оценка законности перехода к рыночной модели экономики." },
   13: { t: "Малому бизнесу нужно резко снизить налоги.", d: "Поддержка предпринимательства через налоговые реформы." },
   14: { t: "Государственные корпорации слишком раздуты.", d: "Обсуждение роли госкапитализма." },
+  15: { t: "Стратегические отрасли должны контролироваться государством.", d: "Национализация оборонных и ключевых добывающих производств." },
   16: { t: "Нужно повышать МРОТ даже под риском инфляции.", d: "Увеличение минимальной зарплаты." },
+  17: { t: "Рыночная экономика — лучший путь развития России.", d: "Приоритет частной инициативы перед планированием." },
   18: { t: "Государство должно ограничивать цены на базовые товары.", d: "Контроль над стоимостью продуктов питания." },
   19: { t: "Центробанк должен быть менее независимым.", d: "Подчинение регулятора экономическим планам правительства." },
   20: { t: "Импортозамещение полезно для страны.", d: "Развитие собственной индустрии." },
+  21: { t: "Нужно увеличить пособия малоимущим.", d: "Масштаб мер по борьбе с бедностью." },
   22: { t: "Пенсионный возраст стоит снизить.", d: "Откат реформы 2018 года." },
   23: { t: "Государство должно больше поддерживать семьи с детьми.", d: "Стимулирование рождаемости через материнский капитал." },
+  24: { t: "Аборт должен оставаться легальным.", d: "Право на репродуктивный выбор." },
   25: { t: "Школа должна воспитывать патриотизм.", d: "Воспитательная функция образования." },
   26: { t: "Частные школы — нормальная альтернатива государственным.", d: "Платное образование против государственных стандартов." },
   27: { t: "Нужно вернуть больше советских социальных гарантий.", d: "Бесплатное жилье и распределение выпускников." },
   28: { t: "Государство должно поддерживать рождаемость финансово.", d: "Прямые демографические выплаты." },
   29: { t: "Бедность — главная проблема России.", d: "Приоритетность борьбы с социальным неравенством." },
   30: { t: "Богатые регионы должны больше помогать бедным.", d: "Перераспределение налогов между субъектами." },
+  31: { t: "Военные расходы оправданы нынешней ситуацией.", d: "Приоритет оборонного сектора в бюджете." },
   32: { t: "Армия должна быть преимущественно контрактной.", d: "Профессиональные войска против призывной системы." },
   33: { t: "В России нужно усиливать внутреннюю безопасность.", d: "Расширение полномочий силовых структур." },
   34: { t: "Ядерное сдерживание — основа безопасности России.", d: "Приоритетность ядерного щита." },
+  35: { t: "России нужно сократить военные расходы ради социальных нужд.", d: "Оптимизация бюджета на оборону." },
   36: { t: "Силовые структуры должны иметь широкие полномочия.", d: "Свобода действий ведомств при пресечении угроз." },
   37: { t: "Патриотическое воспитание молодёжи через армию — правильно.", d: "Юнармия, подготовка к военной службе." },
   38: { t: "Военнослужащие должны иметь больше социальных гарантий.", d: "Льготы и довольствие участников оборонного контура." },
   39: { t: "Россия должна поддерживать союзников военными средствами.", d: "Присутствие и геополитическое влияние за рубежом." },
   40: { t: "Гражданский контроль над армией важен для демократии.", d: "Подотчетность Минобороны парламенту." },
+  41: { t: "Государство должно усиливать контроль над интернетом.", d: "Блокировки ресурсов ради безопасности." },
   42: { t: "Иностранные соцсети несут угрозу информационной безопасности.", d: "Цензура и блокировки внешних ресурсов." },
   43: { t: "Государство должно иметь доступ к переписке граждан при угрозе.", d: "Пакет Яровой против конфиденциальности." },
   44: { t: "Цифровизация госуслуг улучшает жизнь людей.", d: "Электронные сервисы и базы данных." },
   45: { t: "Биометрические данные граждан должны храниться у государства.", d: "Безопасность биометрии." },
   46: { t: "Нужно ограничить распространение «фейков» в интернете.", d: "Административный запрет ложной информации." },
+  47: { t: "Свобода интернета важнее соображений безопасности.", d: "Конфиденциальность против надзора." },
   48: { t: "Граждане должны иметь право на анонимность в сети.", d: "Регистрация в интернете по паспортам." },
   49: { t: "Россия должна развивать собственные цифровые платформы.", d: "Создание локальных аналогов ИТ-гигантов." },
   50: { t: "Искусственный интеллект должен регулироваться государством.", d: "Контроль за внедрением алгоритмов ИИ." },
+  51: { t: "Государство должно поддерживать традиционные религиозные ценности.", d: "Роль конфессий в культурном воспитании." },
   52: { t: "ЛГБТ-пропаганда должна быть запрещена.", d: "Защита традиционной семьи и запреты." },
   53: { t: "Русская культура должна активно поддерживаться государством.", d: "Субсидии фильмам, книгам и выставкам." },
   54: { t: "Западные культурные влияния представляют угрозу.", d: "Защита от вестернизации общества." },
+  55: { t: "Церковь не должна влиять на политику.", d: "Светский статус государства." },
   56: { t: "Исторические символы СССР должны чтиться наравне с имперскими.", d: "Примирение советского и монархического периодов истории." },
   57: { t: "Традиционная семья — основа общества.", d: "Признание брака как союза мужчины и женщины." },
   58: { t: "Школьное образование должно воспитывать патриотов.", d: "Разговоры о важном и история." },
   59: { t: "Культурное разнообразие России — её сила.", d: "Отношение к многонациональности страны." },
-  60: { t: "Нужно ограничить иностранные НКО в России.", d: "Статус иностранных агентов для безопасности гражданского общества." },
+  60: { t: "Нужно ограничить иностранные НКО в России.", d: "Законы об иностранных агентах." },
+  61: { t: "Россия должна стремиться к многополярному миру.", d: "Укрепление БРИКС и ослабление доминирования Запада." },
+  62: { t: "России нужно нормализовать отношения с Западом.", d: "Деэскалация, снятие санкций и восстановление торговли." },
   63: { t: "Санкции Запада укрепляют Россию.", d: "Оценка результатов импортозамещения." },
   64: { t: "Права человека важнее государственных интересов.", d: "Приоритет личности перед интересами суверенитета." },
   65: { t: "Россия должна поддерживать русскоязычных за рубежом.", d: "Дипломатический и культурный контур защиты диаспор." },
@@ -994,199 +647,174 @@ const QUESTION_TEXTS_RU: Record<number, { t: string; d: string }> = {
   67: { t: "Россия должна быть более открыта к сотрудничеству с Европой.", d: "Диалог с европейскими соседями." },
   68: { t: "СНГ и постсоветское пространство — зона интересов России.", d: "Интеграция ЕАЭС и ОДКБ." },
   69: { t: "Россия должна наладить отношения с Украиной на равноправной основе.", d: "Поиск долгосрочных мирных компромиссов." },
-  70: { t: "Китай — стратегический партнёр России.", detail: "Экономическая и военная опора на Пекин.", d: "Торговый альянс." },
+  70: { t: "Китай — стратегический партнёр России.", d: "Экономическая опора на Пекин." },
+  71: { t: "Экология важнее быстрого экономического роста.", d: "Ограничение вредных предприятий ради природы." },
   72: { t: "Россия должна активнее развивать возобновляемую энергетику.", d: "Переход на зеленую генерацию." },
   73: { t: "Атомная энергетика — будущее России.", d: "Развитие атомных реакторов Росатома." },
-  74: { t: "Граждане должны иметь право на чистую окружающую среду.", d: "Борьба с выбросами и незаконными свалками." },
-  75: { t: "Климатическая повестка — инструмент западного давления.", d: "Скептическое отношение к углеродным налогам." },
-  76: { t: "Государство должно инвестировать в освоение Арктики.", d: "Северный морской путь и добыча ресурсов." },
-  77: { t: "Технологический суверенитет важнее открытого рынка технологий.", d: "Производство микрочипов внутри страны." },
-  78: { t: "Нужно поддерживать экологически ответственный бизнес.", d: "Льготы за внедрение фильтров." },
-  79: { t: "Россия должна развивать собственную космическую программу.", d: "Полеты на Луну, орбитальные станции." },
-  80: { t: "Цифровая экономика — приоритет развития страны.", d: "Венчурные фонды и ИТ-инфраструктура." },
-  82: { t: "Многонациональность России — её богатство.", d: "Равноправие этносов и культур." },
-  83: { t: "Мигранты должны интегрироваться в русскую культуру.", d: "Обязательные экзамены по истории и законам." },
-  84: { t: "Граждане России должны иметь приоритет при трудоустройстве.", d: "Жесткое ограничение квот на иностранных рабочих." },
-  85: { t: "Нелегальных мигрантов нужно немедленно депортировать.", d: "Борьба с теневой занятостью иностранцев." },
-  86: { t: "Русский язык должен быть единственным официальным языком.", d: "Отказ от регионального двуязычия." },
-  87: { t: "Национальные меньшинства должны иметь культурную автономию.", d: "Право преподавать региональные языки." },
-  88: { t: "Диаспоры несут ответственность за поведение соотечественников.", d: "Контроль за этническими объединениями." },
-  89: { t: "Нужно ограничить приток мигрантов из культурно далёких стран.", d: "Визовые ограничения на основе культурного кода." },
-  90: { t: "Россия должна принимать русскоязычных переселенцев с приоритетом.", d: "Гражданство соотечественникам в ускоренном режиме." },
-  92: { t: "Молодёжи нужно дать больше политической свободы.", d: "Участие студентов в политике." },
-  94: { t: "Будущее России — в сильном государстве с элементами социальной справедливости.", d: "Сбалансированное патерналистское госрегулирование." },
-  96: { t: "Частный бизнес обычно эффективнее государства.", d: "Сравнение коммерческого сектора и госкомпаний." },
-  97: { t: "Цензура в условиях кризиса может быть оправдана.", d: "Контроль информации для безопасности." },
-  98: { t: "Россия должна стремиться к технологической самодостаточности.", d: "Замещение импортных платформ." },
-  99: { t: "Нужно вводить прогрессивный налог для богатых.", d: "НДФЛ для миллионеров." },
-  100: { t: "Военные расходы сейчас слишком высоки.", d: "Перевод оборонного бюджета на социальные реформы." }
+  74: { t: "Граждане должны иметь право на чистую окружающую среду.", d: "Экологическое правосудие." },
+  75: { t: "Климатическая повестка — инструмент западного давления.", d: "Зеленый протекционизм со стороны Европы." },
+  76: { t: "Государство должно инвестировать в освоение Арктики.", d: "Полярные ресурсы и Севморпуть." },
+  77: { t: "Технологический суверенитет важнее открытого рынка.", d: "Свои микросхемы и независимое ПО." },
+  78: { t: "Нужно поддерживать экологически ответственный бизнес.", d: "Субсидии и льготы за низкий вред природе." },
+  79: { t: "Россия должна развивать собственную космическую программу.", d: "Финансирование пилотируемой космонавтики." },
+  80: { t: "Цифровая экономика — приоритет развития страны.", d: "Развитие ИТ-сектора." },
+  81: { t: "России нужна более жёсткая миграционная политика.", d: "Визовый режим с Центральной Азией." },
+  82: { t: "Многонациональность России — её богатство.", d: "Поддержка коренных наций." },
+  83: { t: "Мигранты должны интегрироваться в русскую культуру.", d: "Сдача экзаменов и знание обычаев." },
+  84: { t: "Граждане России должны иметь приоритет при трудоустройстве.", d: "Введение квот для иностранцев." },
+  85: { t: "Нелегальных мигрантов нужно немедленно депортировать.", d: "Оперативное выдворение нарушителей." },
+  86: { t: "Русский язык должен быть единственным официальным языком.", d: "Запрет региональных вариантов на госслужбе." },
+  87: { t: "Национальные меньшинства должны иметь культурную автономию.", d: "Поддержка родных языков." },
+  88: { t: "Диаспоры несут ответственность за поведение соотечественников.", d: "Коллективная подотчетность объединений." },
+  89: { t: "Нужно ограничить приток мигрантов из культурно далёких стран.", d: "Фильтрация на основе вероисповедания." },
+  90: { t: "Россия должна принимать русскоязычных переселенцев.", d: "Ускоренная репатриация соотечественников." },
+  91: { t: "Сильный лидер важнее полной политической конкуренции.", d: "Приоритет авторитетного правления." },
+  92: { t: "Молодёжи нужно дать больше политической свободы.", d: "Участие нового поколения в митингах." },
+  93: { t: "Нужно сокращать влияние олигархов.", d: "Разрыв союза крупного капитала и госаппарата." },
+  94: { t: "Будущее России — в сильном государстве с элементами справедливости.", d: "Социальный консерватизм." },
+  95: { t: "Неравенство доходов в России стало слишком большим.", d: "Проблема колоссального разрыва в богатстве." },
+  96: { t: "Частный бизнес обычно эффективнее государства.", d: "Преимущество частной инициативы." },
+  97: { t: "Цензура в условиях кризиса может быть оправдана.", d: "Контроль информации во имя безопасности." },
+  98: { t: "Россия должна стремиться к технологической самодостаточности.", d: "Промышленное импортозамещение." },
+  99: { t: "Нужно вводить прогрессивный налог для богатых.", d: "Повышение налоговой ставки на крупные доходы." },
+  100: { t: "Военные расходы сейчас слишком высоки.", d: "Перераспределение оборонных денег в социальную сферу." }
 };
 
 const QUESTION_TEXTS_EN: Record<number, { t: string; d: string }> = {
-  3: { t: "Governors should be elected as independently as possible.", d: "Direct regional head elections without filters." },
-  4: { t: "A strong vertical of power is more important than regional autonomy.", d: "Centralization vs. decentralization debates." },
-  5: { t: "The political opposition should have more opportunities.", d: "The level of access to fair political competition." },
-  6: { t: "The state must fight protests harshly.", d: "Public safety versus civil rights to assemble." },
-  7: { t: "Electronic voting increases trust in elections.", d: "Assessing electronic voting system reliability." },
-  8: { t: "The judicial system is not independent enough.", d: "Judicial branch autonomy and balance of powers." },
-  9: { t: "Officials should be legally restricted from luxury.", d: "Public demands for stricter corruption controls." },
-  10: { t: "Terms in power should be restricted more strictly.", d: "Democratic transition of elites." },
-  12: { t: "The privatization of the 1990s was a mistake.", d: "Assessing the fairness of the post-Soviet market transition." },
-  13: { t: "Taxes on small businesses should be sharply reduced.", d: "Unleashing entrepreneurship through taxation relief." },
-  14: { t: "State-owned corporations are too bloated.", d: "Debates around state-controlled capitalism." },
-  16: { t: "The minimum wage should be increased even at the risk of inflation.", d: "Poverty alleviation vs. market concerns." },
-  18: { t: "The state should restrict prices on basic goods.", d: "Price controls on food, fuel, and medicines." },
-  19: { t: "The Central Bank should be less independent.", d: "Subordinating the regulator to Government policies." },
-  20: { t: "Import substitution is beneficial for the country.", d: "Sovereign industrial development under pressures." },
-  22: { t: "The retirement age should be lowered.", d: "Reversing the 2018 pension reforms." },
-  23: { t: "The state should support families with children more.", d: "Maternity benefits and welfare programs." },
-  25: { t: "Schools should foster patriotism.", d: "The role of public education in national identity." },
-  26: { t: "Private schools are a normal alternative to state schools.", d: "Education competition vs. standard public guarantees." },
-  27: { t: "More Soviet social guarantees should be restored.", d: "State-provided jobs, housing, and social benefits." },
-  28: { t: "The state should support the birth rate financially.", d: "Targeted payouts for large families." },
-  29: { t: "Poverty is Russia's main problem.", d: "Prioritizing economic welfare over geopolitical goals." },
-  30: { t: "Wealthy regions should help poor ones more.", d: "Interregional budget redistribution schemes." },
-  32: { t: "The army should be predominantly contract-based.", d: "Professional soldiers vs. military conscription." },
-  33: { t: "Internal security needs to be strengthened in Russia.", d: "Broadening internal security and police surveillance." },
-  34: { t: "Nuclear deterrence is the foundation of Russia's security.", d: "Strategical nuclear forces as a prime sovereignty shield." },
-  36: { t: "Security agencies should have broad powers.", d: "Giving security forces more operational freedoms." },
-  37: { t: "Patriotic education of youth through the military is correct.", d: "School-level military training and youth military clubs." },
-  38: { t: "Service members should have more social guarantees.", d: "Welfare benefits for military personnel." },
-  39: { t: "Russia should support allies by military means.", d: "Military projections in strategic regions." },
-  40: { t: "Civilian control over the military is important for democracy.", d: "Public parliamentary oversight over the army." },
-  42: { t: "Foreign social networks pose a threat to information security.", d: "Censoring foreign platforms to prevent manipulation." },
-  43: { t: "The state should have access to citizens' private messages under threat.", d: "Sovereign database monitoring vs. personal privacy." },
-  44: { t: "Digitalization of public services improves people's lives.", d: "Developing state-centric online ecosystems." },
-  45: { t: "Citizens' biometric data should be stored by the state.", d: "Sovereign biometric archives." },
-  46: { t: "The spread of 'fake news' on the internet should be restricted.", d: "State-defined boundaries of fake information." },
-  48: { t: "Citizens should have the right to online anonymity.", d: "Eliminating ID-linked online requirements." },
-  49: { t: "Russia should develop its own digital platforms.", d: "National alternative search systems and services." },
-  50: { t: "Artificial intelligence should be regulated by the state.", d: "State-led controls over AI algorithms." },
-  52: { t: "LGBT propaganda should be banned.", d: "Legislated restrictions over non-traditional values." },
-  53: { t: "Russian culture should be actively supported by the state.", d: "Funding patriotic films, books, and theater." },
-  54: { t: "Western cultural influences pose a threat.", d: "Soft power confrontation and sovereignty." },
-  56: { t: "Historical symbols of the USSR should be respected equally with imperial ones.", d: "Sustaining a unified narrative of Soviet achievements." },
-  57: { t: "The traditional family is the foundation of society.", d: "Recognizing marriage strictly as a male-female union." },
-  58: { t: "School education should raise patriots.", d: "Sovereign curriculum reforms in history and social science." },
-  59: { t: "The cultural diversity of Russia is its strength.", d: "Ethnic diversity as a solid positive resource." },
-  60: { t: "Foreign NGOs in Russia should be restricted.", d: "Curbing foreign influence in civil institutions." },
-  63: { t: "Western sanctions strengthen Russia.", d: "Assessing long-term import substitution gains." },
-  64: { t: "Human rights are more important than state interests.", d: "Prioritizing individual rights over state tasks." },
-  65: { t: "Russia should support Russian speakers abroad.", d: "Diplomatic and legal framework for compatriot support." },
-  66: { t: "NATO represents a threat to Russia's security.", d: "Alliance expansions near national borders." },
-  67: { t: "Russia should be more open to cooperation with Europe.", d: "Restoring trade and open economic dialogue." },
-  68: { t: "The CIS and post-Soviet space are zones of Russian interest.", d: "Sustaining economic alliances like EAEU." },
-  69: { t: "Russia should establish relations with Ukraine on an equal footing.", d: "Long-term peace compromises and bilateral agreements." },
-  70: { t: "China is a strategic partner of Russia.", d: "Deepening trade and technological ties with Beijing." },
-  72: { t: "Russia should more actively develop renewable energy.", d: "Moving towards green technologies and solar cells." },
-  73: { t: "Nuclear energy is the future of Russia.", d: "Expanding clean atomic generation assets." },
-  74: { t: "Citizens should have the right to a clean environment.", d: "Civil eco-rights and cutting toxic emissions." },
-  75: { t: "The climate agenda is a tool of Western pressure.", d: "Treating green transition goals as competitive limits." },
-  76: { t: "The state should invest in the development of the Arctic.", d: "Northern Sea Route development." },
-  77: { t: "Technological sovereignty is more important than an open market of technologies.", d: "Sovereign microchip manufacturing plants." },
-  78: { t: "Environmentally responsible businesses should be supported.", d: "Tax credits for carbon footprint cuts." },
-  79: { t: "Russia should develop its own space program.", d: "Sovereign space programs and orbital bases." },
-  80: { t: "The digital economy is a priority for the country's development.", d: "Financing local IT infrastructure." },
-  82: { t: "Russia's multiethnicity is its wealth.", d: "Equal cultural autonomy of all indigenous groups." },
-  83: { t: "Migrants should integrate into Russian culture.", d: "Stricter exams on language and cultural codes." },
-  84: { t: "Citizens of Russia should have priority in employment.", d: "Applying stricter hiring limits for foreigners." },
-  85: { t: "Illegal migrants should be immediately deported.", d: "Active deportation programs." },
-  86: { t: "The Russian language should be the only official language.", d: "Restricting dual regional language frameworks." },
-  87: { t: "National minorities should have cultural autonomy.", d: "Sustaining regional language teaching models." },
-  88: { t: "Diasporas bear responsibility for the behavior of their compatriots.", d: "Applying group accountability concepts to diaspora groups." },
-  89: { t: "The influx of migrants from culturally distant countries should be limited.", d: "Culturally-adapted visa frameworks." },
-  90: { t: "Russia should accept Russian-speaking migrants with priority.", d: "Fast-track citizenships for ethnic compatriots." },
-  92: { t: "Youth should be given more political freedom.", d: "Enabling students' political autonomy." },
-  94: { t: "The future of Russia is in a strong state with elements of social justice.", d: "Strong social-paternalistic balance." },
-  96: { t: "Private business is usually more efficient than the state.", d: "Sovereign corporations vs. business autonomy." },
-  97: { t: "Censorship in conditions of crisis can be justified.", d: "Restricting speech during acute national emergencies." },
-  98: { t: "Russia must strive for technological self-sufficiency.", d: "Substituting import platforms." },
-  99: { t: "A progressive tax for the rich should be introduced.", d: "Expanding progressiveness of top income rates." },
-  100: { t: "Military spending is too high right now.", d: "Shifting military assets to healthcare and schools." }
+  1: { t: "The President should be given more power.", d: "Balance of executive power. Supporters believe a strong presidential vertical guarantees stability during crises." },
+  2: { t: "The parliament in Russia is too weak.", d: "Role of the State Duma and the real influence of elected deputies on state decision-making." },
+  11: { t: "Large companies should pay higher taxes.", d: "Introduction of progressive taxation on large corporations and high incomes." },
+  15: { t: "Strategic industries should be controlled by the state.", d: "State control over key sectors like energy, defense, and transportation." },
+  17: { t: "A market economy is the best path for Russia.", d: "The fundamental debate between free-market capitalism and state economic planning." },
+  21: { t: "Welfare benefits for the poor should be increased.", d: "Direct state financial assistance to combat poverty and support families." },
+  24: { t: "Abortion should remain legal.", d: "A key moral debate regarding reproductive rights and choices." },
+  31: { t: "Military spending is justified by the current situation.", d: "The share of GDP dedicated to defense and internal security." },
+  35: { t: "Russia should cut military spending in favor of social needs.", d: "A debate on budgeting priorities: national defense vs. healthcare and education." },
+  41: { t: "The state should increase control over the internet.", d: "Security-oriented state filtering of web resources and social media platforms." },
+  47: { t: "Internet freedom is more important than security concerns.", d: "The debate over digital privacy, anonymity, and anti-censorship rights." },
+  51: { t: "The state should support traditional religious values.", d: "The role of traditional religions (Orthodoxy, Islam) in public education." },
+  55: { t: "The church should have no influence on politics.", d: "The constitutional secular state principle and non-interference of clergy." },
+  61: { t: "Russia should strive for a multipolar world.", d: "Foreign policy alignment emphasizing BRICS, SCO, and reducing Western influence." },
+  62: { t: "Russia needs to normalize relations with the West.", d: "Advocating for de-escalation, diplomacy, and lifting of sanctions." },
+  71: { t: "Ecology should be a priority even if it slows down industrial growth.", d: "The balance between strict green standards and traditional production." },
+  81: { t: "Russia needs a more restrictive migration policy.", d: "Introducing visa regimes and strict labor quotas for migrants." },
+  91: { t: "A strong leader is more important than political competition.", d: "Centralized governance efficiency vs. representative democracy." },
+  93: { t: "The influence of oligarchs should be reduced.", d: "Limiting lobbying power of big businesses in state decisions." },
+  95: { t: "Income inequality in Russia is far too high.", d: "The widening gap between wealthy cities and poorer regions." }
 };
 
-// Filling remaining 80 questions dynamically statically to maintain TS compatibility and no placeholders
-for (let i = 1; i <= 100; i++) {
-  const exists = ALL_QUESTIONS.some(q => q.n === i);
-  if (!exists) {
-    const textRu = QUESTION_TEXTS_RU[i]?.t || `Вопрос №${i} из базы 2026.`;
-    const textEn = QUESTION_TEXTS_EN[i]?.t || `Question #${i} from the 2026 campaign base.`;
-    const detailRu = QUESTION_TEXTS_RU[i]?.d || "Контекст вопроса находится на стадии модерации.";
-    const detailEn = QUESTION_TEXTS_EN[i]?.d || "The question context is being prepared.";
+const ALL_QUESTIONS: Question[] = Array.from({ length: 100 }, (_, i) => ({
+  n: i + 1,
+  sec: i < 10 ? "I" : i < 20 ? "II" : i < 30 ? "III" : i < 40 ? "IV" : i < 50 ? "V" : i < 60 ? "VI" : i < 70 ? "VII" : i < 80 ? "VIII" : i < 90 ? "IX" : "X"
+}));
 
-    ALL_QUESTIONS.push({
-      n: i,
-      sec: i <= 10 ? "I" : i <= 20 ? "II" : i <= 30 ? "III" : i <= 40 ? "IV" : i <= 50 ? "V" : i <= 60 ? "VI" : i <= 70 ? "VII" : i <= 80 ? "VIII" : i <= 90 ? "IX" : "X",
-      text: {
-        ru: textRu,
-        en: textEn,
-        be: textRu,
-        tt: textRu,
-        ba: textRu,
-        cv: textRu
-      },
-      detail: {
-        ru: detailRu,
-        en: detailEn,
-        be: detailRu,
-        tt: detailRu,
-        ba: detailRu,
-        cv: detailRu
-      }
-    });
-  }
-}
+const SHORT_INDICES = [1, 2, 11, 15, 17, 21, 24, 31, 35, 41, 47, 51, 55, 61, 62, 71, 81, 91, 93, 95];
 
-ALL_QUESTIONS.sort((a, b) => a.n - b.n);
+const MATRIX: Record<number, number[]> = {
+  1:  [5,4,5,2,4,1, 4,4,4,5,2,4], 2:  [2,5,3,4,4,5, 3,4,3,2,5,4], 3:  [2,3,2,4,3,5, 4,2,4,2,5,4],
+  4:  [5,4,5,2,4,1, 4,5,3,5,2,4], 5:  [2,4,2,5,3,5, 3,2,3,1,4,3], 6:  [4,2,4,1,3,1, 3,5,3,5,2,4],
+  7:  [5,2,4,3,2,1, 4,2,4,5,5,4], 8:  [2,3,2,4,3,5, 3,4,3,2,4,3], 9:  [3,5,4,4,5,4, 5,5,5,4,5,5],
+  10: [1,3,2,5,3,5, 2,3,3,1,4,3], 11: [3,5,4,2,5,4, 5,5,4,4,3,2], 12: [2,5,4,1,4,1, 5,5,4,4,2,2],
+  13: [3,2,3,5,3,4, 4,3,5,4,5,5], 14: [2,4,3,5,3,4, 3,2,4,2,5,5], 15: [5,5,4,2,4,2, 5,5,4,5,3,3],
+  16: [3,5,4,2,5,3, 5,5,4,4,3,3], 17: [4,2,3,5,3,5, 2,1,4,3,5,5], 18: [3,5,4,2,5,2, 5,5,3,4,2,2],
+  19: [4,5,4,2,4,2, 4,5,3,4,3,3], 20: [5,4,5,2,4,2, 5,5,4,5,3,4], 21: [4,5,3,3,5,4, 5,5,4,4,3,3],
+  22: [2,5,4,2,5,3, 5,5,4,4,3,3], 23: [5,4,5,4,5,3, 5,5,5,5,4,4], 24: [3,4,2,5,3,5, 3,4,4,2,5,4],
+  25: [5,4,5,2,4,2, 4,5,4,5,3,4], 26: [3,2,3,5,3,4, 3,1,4,3,5,5], 27: [2,5,3,1,4,2, 5,5,4,4,2,2],
+  28: [5,4,5,3,5,3, 5,5,5,5,4,4], 29: [3,5,4,3,5,4, 5,5,4,4,4,3], 30: [4,5,3,3,5,4, 5,5,4,4,3,3],
+  31: [5,4,5,3,4,1, 4,5,4,5,3,4], 32: [4,4,4,4,4,3, 3,2,4,3,5,4], 33: [5,4,5,3,4,2, 4,5,3,5,3,4],
+  34: [5,3,5,2,3,1, 5,5,4,5,4,5], 35: [1,2,1,4,2,5, 2,1,3,1,4,2], 36: [5,4,5,3,4,2, 3,5,3,5,2,4],
+  37: [5,4,5,2,4,1, 4,5,4,5,3,4], 38: [5,5,5,4,5,3, 5,5,4,5,4,4], 39: [4,4,5,2,4,1, 4,5,3,5,3,4],
+  40: [2,2,2,4,3,5, 3,2,4,1,5,3], 41: [5,3,4,1,3,1, 4,5,3,5,2,3], 42: [5,4,5,2,4,1, 4,5,4,5,2,4],
+  43: [5,3,4,1,3,1, 3,5,3,5,2,3], 44: [5,4,4,4,4,3, 4,4,5,4,5,5], 45: [4,4,4,2,3,2, 3,4,3,4,2,3],
+  46: [5,4,5,2,4,1, 4,5,4,5,2,4], 47: [1,3,2,5,3,5, 2,1,3,1,5,3], 48: [2,3,2,5,3,5, 2,1,3,1,5,3],
+  49: [5,3,4,2,3,1, 4,5,4,5,5,4], 50: [5,4,4,5,4,4, 4,5,4,4,3,3], 51: [5,3,5,1,4,1, 4,3,3,5,2,4],
+  52: [2,4,2,5,3,5, 4,5,4,5,3,4], 53: [5,3,4,2,3,1, 4,5,4,5,3,4], 54: [5,4,5,2,4,1, 4,5,3,5,2,3],
+  55: [4,3,5,2,3,2, 3,5,4,2,5,4], 56: [5,3,5,1,3,1, 4,5,3,5,3,3], 57: [4,5,4,2,4,2, 5,5,4,5,4,4],
+  58: [5,4,5,2,4,1, 4,5,4,5,3,4], 59: [3,4,3,4,3,4, 4,4,5,3,4,4], 60: [5,4,5,3,4,2, 4,5,4,5,3,4],
+  61: [5,4,4,4,4,3, 5,5,5,5,4,5], 62: [2,2,1,5,2,5, 2,1,3,1,4,3], 63: [5,4,5,2,4,1, 4,5,3,5,3,4],
+  64: [2,3,2,5,3,5, 3,2,4,1,4,3], 65: [5,4,5,3,4,2, 5,5,4,5,3,4], 66: [4,3,5,2,3,1, 5,5,4,5,3,5],
+  67: [2,2,1,5,3,5, 3,1,4,1,5,3], 68: [5,4,5,2,4,1, 5,5,4,5,3,4], 69: [2,2,1,4,3,5, 2,1,3,1,4,3],
+  70: [5,4,5,3,4,2, 4,5,4,5,4,4], 71: [3,4,2,5,4,5, 4,4,5,2,4,3], 72: [2,3,1,4,3,5, 4,3,5,2,5,4],
+  73: [5,5,5,4,5,3, 4,5,4,5,4,4], 74: [4,4,2,5,4,5, 5,5,5,4,5,4], 75: [3,3,1,5,3,5, 3,4,2,5,2,3],
+  76: [5,4,5,2,4,1, 4,5,4,5,4,4], 77: [5,3,4,5,4,4, 4,5,4,5,4,4], 78: [3,3,3,5,3,4, 4,3,5,3,4,4],
+  79: [5,5,4,5,4,4, 4,5,4,5,5,4], 80: [3,4,3,4,4,4, 4,4,4,4,5,5], 81: [4,4,5,2,4,1, 5,4,4,5,3,4],
+  82: [4,2,2,5,3,4, 4,5,5,3,4,4], 83: [5,5,5,3,5,3, 5,5,4,5,4,4], 84: [5,4,3,5,4,5, 5,5,4,5,3,4],
+  85: [4,4,5,2,4,1, 5,5,4,5,4,4], 86: [5,4,5,3,4,2, 4,3,3,5,3,3], 87: [3,2,1,5,3,5, 4,5,5,3,4,4],
+  88: [4,4,5,3,4,3, 4,3,3,5,2,4], 89: [4,4,5,2,4,2, 4,3,3,5,3,4], 90: [4,3,5,3,3,2, 5,5,4,5,4,4],
+  91: [5,4,5,2,4,2, 3,5,3,5,2,3], 92: [2,2,1,5,3,5, 3,2,4,2,5,4], 93: [3,5,3,2,5,4, 5,5,4,5,4,4],
+  94: [5,5,5,2,4,1, 5,5,4,5,3,4], 95: [5,4,5,2,4,1, 5,5,5,5,4,4], 96: [2,4,3,5,3,5, 2,1,3,3,5,5],
+  97: [5,3,4,5,4,4, 4,5,3,5,3,4], 98: [5,4,5,3,4,2, 5,5,4,5,5,5], 99: [2,4,2,5,3,5, 5,5,4,5,4,3],
+  100:[2,2,1,5,3,5, 2,1,3,1,4,2],
+};
+
+const SCALE_LABELS: Record<number, Record<Lang, string>> = {
+  1: { ru: "Полностью не согласен", en: "Strongly Disagree", be: "Цалкам нязгодны", tt: "Бөтенләй каршы", ba: "Бөтөнләй ҡаршы", cv: "Пачах килĕшместĕп" },
+  2: { ru: "Скорее не согласен", en: "Somewhat Disagree", be: "Хутчэй нязгодны", tt: "Каршырак", ba: "Ҡаршыраҡ", cv: "Килĕшместĕп пулĕ" },
+  3: { ru: "Нейтрально", en: "Neutral / Unsure", be: "Нейтральна", tt: "Нейтраль", ba: "Нейтраль", cv: "Нейтраллă" },
+  4: { ru: "Скорее согласен", en: "Somewhat Agree", be: "Хутчэй згодны", tt: "Ниһайәт килешәм", ba: "Килешәм тиерлек", cv: "Килĕшетĕп пулĕ" },
+  5: { ru: "Полностью согласен", en: "Strongly Agree", be: "Цалкам згодны", tt: "Бөтенләй килешәм", ba: "Бөтөнләй килешәм", cv: "Пачах килĕшетĕп" }
+};
+
+// ─────────────────────────────────────────────────────────────
+// MATH ALGORITHMS (STRETCHED QUADRATIC ALIGNMENT)
+// ─────────────────────────────────────────────────────────────
 
 function calcScores(answers: Record<number, number>, weights: Record<string, number>): Record<string, number> {
-  const totals: Record<string, number> = {};
-  const maxPossible: Record<string, number> = {};
   const pKeys = ["ER", "KPRF", "LDPR", "NL", "SR", "YAB", "RPPS", "KR", "ZEL", "ROD", "PPD", "GP"];
+  const totalPenalties: Record<string, number> = {};
+  const maxPenalties: Record<string, number> = {};
 
-  pKeys.forEach(p => {
-    totals[p] = 0;
-    maxPossible[p] = 0;
+  pKeys.forEach(k => {
+    totalPenalties[k] = 0;
+    maxPenalties[k] = 0;
   });
 
-  Object.entries(answers).forEach(([qnStr, val]) => {
-    const qn = parseInt(qnStr);
-    const qData = ALL_QUESTIONS.find(x => x.n === qn);
-    if (!qData) return;
-    const sec = qData.sec;
-    const w = weights[sec] ?? 1.0;
+  const answeredEntries = Object.entries(answers);
+  if (answeredEntries.length === 0) {
+    const defaultScores: Record<string, number> = {};
+    pKeys.forEach(p => { defaultScores[p] = 50; });
+    return defaultScores;
+  }
 
-    const row = MATRIX[qn];
+  answeredEntries.forEach(([qn, val]) => {
+    const q = parseInt(qn);
+    const row = MATRIX[q];
     if (!row) return;
 
-    pKeys.forEach((p, idx) => {
-      const ideal = row[idx];
-      const diff = Math.abs(val - ideal);
-      const penalty = Math.pow(diff, 2);
-      const maxPenalty = 16; 
+    const questionObj = ALL_QUESTIONS.find(x => x.n === q);
+    const sec = questionObj ? questionObj.sec : "I";
+    const w = weights[sec] !== undefined ? weights[sec] : 1.0;
 
-      totals[p] += (maxPenalty - penalty) * w;
-      maxPossible[p] += maxPenalty * w;
+    pKeys.forEach((p, i) => {
+      const partyVal = row[i];
+      const distance = Math.abs(val - partyVal);
+      const penalty = Math.pow(distance, 2); // Quadratic penalty for sharp differences
+      totalPenalties[p] += penalty * w;
+      maxPenalties[p] += 16 * w; // Maximum penalty per question ( (5 - 1)^2 = 16 )
     });
   });
 
-  const rawMatch: Record<string, number> = {};
+  const rawScores: Record<string, number> = {};
   pKeys.forEach(p => {
-    rawMatch[p] = maxPossible[p] > 0 ? (totals[p] / maxPossible[p]) * 100 : 0;
+    const maxP = maxPenalties[p];
+    rawScores[p] = maxP > 0 ? (1 - totalPenalties[p] / maxP) * 100 : 50;
   });
 
-  const vals = Object.values(rawMatch);
-  const minVal = Math.min(...vals);
-  const maxVal = Math.max(...vals);
-  const range = maxVal - minVal;
+  const scoresList = Object.values(rawScores);
+  const minRaw = Math.min(...scoresList);
+  const maxRaw = Math.max(...scoresList);
 
   const stretched: Record<string, number> = {};
+  const targetMin = 15;
+  const targetMax = 95;
+
   pKeys.forEach(p => {
-    if (range > 5) {
-      const norm = (rawMatch[p] - minVal) / range;
-      stretched[p] = Math.round(15 + norm * 80);
+    if (maxRaw === minRaw) {
+      stretched[p] = Math.round(maxRaw);
     } else {
-      stretched[p] = Math.round(rawMatch[p]);
+      const raw = rawScores[p];
+      const val = targetMin + ((raw - minRaw) / (maxRaw - minRaw)) * (targetMax - targetMin);
+      stretched[p] = Math.round(val);
     }
   });
 
@@ -1202,14 +830,16 @@ function calcAxes(answers: Record<number, number>, lang: Lang): { label: string;
       const val = answers[item.q];
       if (val !== undefined && val !== null) {
         const normalized = ((val - 1) / 4) * 100;
+        // Directional score:
+        // dir = 1 means agreement moves right (toward opposite)
+        // dir = -1 means agreement moves left (toward label)
         const actualVal = item.dir === 1 ? normalized : 100 - normalized;
         sumScore += actualVal;
         count++;
       }
     });
 
-    const rawAverage = count > 0 ? Math.round(sumScore / count) : 50;
-    const finalScore = 100 - rawAverage;
+    const finalScore = count > 0 ? Math.round(sumScore / count) : 50;
 
     return {
       label: ax.label[lang] || ax.label["ru"],
@@ -1219,7 +849,7 @@ function calcAxes(answers: Record<number, number>, lang: Lang): { label: string;
   });
 }
 
-function getArchetype(scores: Record<string, number>, lang: Lang): Archetype {
+function getArchetype(scores: Record<string, number>): Archetype {
   const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
   const topParty = sorted[0]?.[0] || "ER";
   return ARCHETYPES.find(a => a.party === topParty) || ARCHETYPES[0];
@@ -1263,29 +893,26 @@ const css = `
   
   .app { max-width: 800px; margin: 0 auto; padding: 40px 20px; }
   
-  h1 { font-family: 'Playfair Display', serif; font-size: clamp(30px, 7vw, 48px); font-weight: 900; line-height: 1.1; text-align: center; margin-bottom: 12px; background: linear-gradient(135deg, #ffffff, #a5b4fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-  .subtitle { text-align: center; color: #818cf8; font-weight: 700; text-transform: uppercase; letter-spacing: 3px; font-size: 13px; margin-bottom: 24px; }
-  .intro-text { text-align: center; color: var(--muted); font-size: 15px; max-width: 600px; margin: 0 auto 40px; line-height: 1.6; }
-
-  /* Languages Selector */
-  .lang-selector { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; margin-bottom: 32px; }
-  .lang-btn { background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border); color: var(--muted); padding: 8px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
-  .lang-btn:hover { border-color: var(--accent); color: var(--text); }
-  .lang-btn.active { background: #4f46e5; border-color: #6366f1; color: white; box-shadow: 0 0 12px rgba(99, 102, 241, 0.4); }
+  /* Header & Custom Navbar */
+  .custom-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+  .lang-select { background: rgba(17, 24, 39, 0.9); border: 1px solid var(--border); color: var(--text); border-radius: 12px; padding: 8px 14px; font-weight: 600; font-size: 14px; outline: none; cursor: pointer; transition: border-color 0.2s; }
+  .lang-select:hover { border-color: var(--accent); }
+  
+  h1 { font-family: 'Playfair Display', serif; font-size: clamp(30px, 7vw, 50px); font-weight: 900; line-height: 1.1; text-align: center; margin-bottom: 20px; background: linear-gradient(135deg, #ffffff, #a5b4fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .subtitle { text-align: center; color: var(--muted); font-size: 16px; margin-bottom: 40px; line-height: 1.5; }
 
   /* Cards */
   .glass-card { background: var(--card); border: 1px solid var(--border); border-radius: 24px; padding: 32px; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4); margin-bottom: 24px; transition: transform 0.2s, border-color 0.2s; }
-
   .menu-option { cursor: pointer; border: 1px solid rgba(255, 255, 255, 0.06); }
   .menu-option:hover { transform: translateY(-4px); border-color: var(--accent); box-shadow: 0 10px 30px var(--accent-glow); }
 
   /* Quiz Styles */
   .q-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; font-weight: 700; color: #818cf8; font-size: 11px; text-transform: uppercase; letter-spacing: 2px; }
-  .q-text { font-family: 'Playfair Display', serif; font-size: clamp(18px, 4.5vw, 24px); margin-bottom: 16px; line-height: 1.4; color: #f9fafb; text-align: left; }
+  .q-text { font-family: 'Playfair Display', serif; font-size: clamp(20px, 4.5vw, 26px); margin-bottom: 16px; line-height: 1.35; color: #f9fafb; }
   
   .detail-toggle { display: inline-flex; align-items: center; gap: 6px; background: none; border: none; color: #a5b4fc; font-size: 13px; font-weight: 500; cursor: pointer; margin-bottom: 20px; transition: color 0.15s; }
   .detail-toggle:hover { color: #c7d2fe; }
-  .detail-pane { background: rgba(99, 102, 241, 0.08); border-left: 3px solid #6366f1; border-radius: 4px; padding: 14px 18px; font-size: 14px; line-height: 1.5; color: #cbd5e1; margin-bottom: 24px; text-align: left; }
+  .detail-pane { background: rgba(99, 102, 241, 0.08); border-left: 3px solid #6366f1; border-radius: 4px; padding: 14px 18px; font-size: 14px; line-height: 1.5; color: #cbd5e1; margin-bottom: 24px; }
 
   .scale { display: flex; flex-direction: column; gap: 10px; }
   .scale-btn { background: rgba(255, 255, 255, 0.02); border: 1px solid var(--border); padding: 14px 20px; border-radius: 12px; color: var(--text); cursor: pointer; transition: all 0.2s; text-align: left; font-size: 15px; display: flex; align-items: center; gap: 14px; }
@@ -1304,7 +931,7 @@ const css = `
 
   /* Results Styles */
   .arch-label { text-align: center; font-size: 11px; color: #818cf8; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 12px; font-weight: 700; }
-  .arch-name { text-align: center; font-family: 'Playfair Display', serif; font-size: clamp(26px, 5.5vw, 36px); margin-bottom: 12px; color: #ffffff; font-weight: 900; }
+  .arch-name { text-align: center; font-family: 'Playfair Display', serif; font-size: clamp(28px, 5.5vw, 38px); margin-bottom: 12px; color: #ffffff; font-weight: 900; }
   .arch-desc { text-align: center; font-size: 14px; color: var(--muted); line-height: 1.6; max-width: 600px; margin: 0 auto 32px; }
 
   .tabs { display: flex; gap: 6px; margin-bottom: 24px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border); padding: 4px; border-radius: 12px; }
@@ -1312,67 +939,45 @@ const css = `
   .tab-btn.active { background: #312e81; color: #c7d2fe; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05); }
 
   .party-list { display: flex; flex-direction: column; gap: 14px; }
-  .party-item { background: rgba(17, 24, 39, 0.5); padding: 16px; border-radius: 16px; border: 1px solid var(--border); }
+  .party-item { background: rgba(255, 255, 255, 0.02); padding: 16px; border-radius: 16px; border: 1px solid var(--border); }
   .party-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 14px; font-weight: 600; }
   
-  .party-logo-badge {
-    width: 38px;
-    height: 38px;
-    background: #e2e8f0; 
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 20px;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35);
-    flex-shrink: 0;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    overflow: hidden;
-  }
-  .party-logo-badge img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-  }
-  .party-logo-badge.large {
-    width: 60px;
-    height: 60px;
-    font-size: 32px;
-    border-radius: 14px;
-  }
+  .party-logo-badge { width: 36px; height: 36px; background: #e2e8f0; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 700; overflow: hidden; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.35); flex-shrink: 0; }
+  .party-logo-badge img { width: 100%; height: 100%; object-fit: contain; }
+  .party-logo-badge.large { width: 56px; height: 56px; border-radius: 14px; font-size: 24px; }
 
   .p-bar-bg { height: 10px; background: rgba(0, 0, 0, 0.4); border-radius: 5px; overflow: hidden; }
   .p-bar-fill { height: 100%; border-radius: 5px; transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1); }
 
   /* Custom Axes representation */
   .axis-item { margin-bottom: 24px; }
-  .axis-header { display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 8px; }
+  .axis-header { display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 8px; }
   .axis-track { height: 8px; background: rgba(0, 0, 0, 0.4); border-radius: 4px; border: 1px solid var(--border); position: relative; }
   .axis-marker { position: absolute; top: 50%; width: 14px; height: 14px; border-radius: 50%; background: #a5b4fc; box-shadow: 0 0 10px #6366f1; border: 2px solid var(--bg); transform: translate(-50%, -50%); transition: left 0.8s cubic-bezier(0.16, 1, 0.3, 1); }
 
-  /* Calibration Weights */
+  /* Interactive Calibration Weights */
   .calibration-section { margin-top: 40px; border-top: 1px dashed var(--border); padding-top: 32px; }
-  .calibration-title { font-family: 'Playfair Display', serif; font-size: 22px; margin-bottom: 8px; text-align: left; }
-  .calibration-desc { font-size: 13px; color: var(--muted); margin-bottom: 24px; line-height: 1.5; text-align: left; }
+  .calibration-title { font-family: 'Playfair Display', serif; font-size: 22px; margin-bottom: 8px; }
+  .calibration-desc { font-size: 13px; color: var(--muted); margin-bottom: 24px; line-height: 1.5; }
   .weight-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.03); }
-  .w-label { font-size: 14px; font-weight: 500; color: #cbd5e1; text-align: left; }
+  .w-label { font-size: 14px; font-weight: 500; color: #cbd5e1; }
   .w-controls { display: flex; align-items: center; gap: 12px; }
   .w-btn { width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--border); background: rgba(255,255,255,0.02); color: var(--text); cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; transition: background 0.15s; }
   .w-btn:hover { background: rgba(255,255,255,0.08); border-color: var(--muted); }
   .w-val { font-family: 'Inter', monospace; font-weight: 700; color: #818cf8; min-width: 40px; text-align: center; }
 
-  /* Modal Confirmation */
+  /* Custom internal modal block for confirmation */
   .modal-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 20px; }
   .modal-box { background: #0f172a; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 20px; max-width: 450px; width: 100%; padding: 28px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
-  .modal-title { font-family: 'Playfair Display', serif; font-size: 20px; margin-bottom: 12px; color: #ffffff; text-align: left; }
-  .modal-text { font-size: 14px; color: var(--muted); line-height: 1.6; margin-bottom: 24px; text-align: left; }
+  .modal-title { font-family: 'Playfair Display', serif; font-size: 20px; margin-bottom: 12px; color: #ffffff; }
+  .modal-text { font-size: 14px; color: var(--muted); line-height: 1.6; margin-bottom: 24px; }
   .modal-actions { display: flex; gap: 12px; }
 
   /* Progress Indicators */
   .indicator-track { height: 4px; background: rgba(255, 255, 255, 0.05); border-radius: 2px; overflow: hidden; margin-bottom: 24px; }
   .indicator-fill { height: 100%; background: linear-gradient(90deg, #4f46e5, #818cf8); transition: width 0.3s ease; }
 
-  /* Toast Messages */
+  /* Feedback / Toasts */
   .toast { position: fixed; bottom: 24px; right: 24px; background: #1e1b4b; border: 1px solid #4f46e5; color: #c7d2fe; padding: 12px 24px; border-radius: 12px; z-index: 1000; font-size: 13px; font-weight: 600; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5); animation: slideIn 0.2s ease; }
 
   @keyframes slideIn {
@@ -1381,25 +986,25 @@ const css = `
   }
 `;
 
-interface LogoProps {
+interface PartyLogoProps {
   party: Party;
   size?: "small" | "large";
 }
 
-function PartyLogo({ party, size = "small" }: LogoProps) {
-  const [err, setErr] = useState(false);
-  const classes = size === "large" ? "party-logo-badge large" : "party-logo-badge";
+function PartyLogo({ party, size = "small" }: PartyLogoProps) {
+  const [error, setError] = useState(false);
+  const badgeClass = size === "large" ? "party-logo-badge large" : "party-logo-badge";
 
   return (
-    <div className={classes} style={{ background: err ? "#1e293b" : "#ffffff" }}>
-      {!err && party.logo ? (
+    <div className={badgeClass} style={{ border: `1px solid ${party.color}` }}>
+      {!error ? (
         <img
-          src={`/${party.logo}`}
-          alt={party.code}
-          onError={() => setErr(true)}
+          src={party.logo}
+          alt={party.name.en}
+          onError={() => setError(true)}
         />
       ) : (
-        <span style={{ color: "#000" }}>{party.emoji}</span>
+        <span style={{ color: party.color }}>{party.emoji}</span>
       )}
     </div>
   );
@@ -1418,6 +1023,8 @@ export default function App() {
   const [confirmModal, setConfirmModal] = useState<{ show: boolean; nextScreen: string }>({ show: false, nextScreen: "" });
   const [exporting, setExporting] = useState<boolean>(false);
 
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
   const qs = useMemo(() => {
     return mode === "short"
       ? ALL_QUESTIONS.filter(q => SHORT_INDICES.includes(q.n))
@@ -1431,10 +1038,22 @@ export default function App() {
   }, [screen, idx]);
 
   const scores = useMemo(() => calcScores(answers, weights), [answers, weights]);
-  const arch = useMemo(() => getArchetype(scores, lang), [scores, lang]);
+  const arch = useMemo(() => getArchetype(scores), [scores]);
   const axesScores = useMemo(() => calcAxes(answers, lang), [answers, lang]);
 
   const t = (key: string) => UI_TRANSLATIONS[lang]?.[key] || UI_TRANSLATIONS["ru"]?.[key] || key;
+
+  const getQText = (n: number): { t: string; d: string } => {
+    const r = QUESTION_TEXTS_RU[n];
+    if (lang === "ru") return r || { t: "", d: "" };
+    
+    // Attempt EN translation if possible
+    const e = QUESTION_TEXTS_EN[n];
+    if (lang === "en" && e) return e;
+
+    // Use Belarusian, Tatar, Chuvash, Bashkir placeholders mapping to Russian
+    return e || r || { t: "", d: "" };
+  };
 
   const handleNext = () => {
     if (idx < qs.length - 1) {
@@ -1445,12 +1064,30 @@ export default function App() {
     }
   };
 
-  const adjustW = (secId: string, delta: number) => {
-    setWeights(prev => {
-      const v = prev[secId] || 1.0;
+  const handleBack = () => {
+    if (idx > 0) {
+      setIdx(idx - 1);
+      setShowDetail(false);
+    } else {
+      setConfirmModal({ show: true, nextScreen: "home" });
+    }
+  };
+
+  const startQuiz = (quizMode: "short" | "full") => {
+    setMode(quizMode);
+    setAnswers({});
+    setWeights({});
+    setIdx(0);
+    setShowDetail(false);
+    setScreen("quiz");
+  };
+
+  const adjustW = (id: string, delta: number) => {
+    setWeights(p => {
+      const v = p[id] !== undefined ? p[id] : 1.0;
       const nextVal = parseFloat((v + delta).toFixed(1));
-      if (nextVal < 0.5 || nextVal > 3.0) return prev;
-      return { ...prev, [secId]: nextVal };
+      if (nextVal < 0.5 || nextVal > 3.0) return p;
+      return { ...p, [id]: nextVal };
     });
   };
 
@@ -1467,26 +1104,17 @@ export default function App() {
     }
   };
 
-  const startQuiz = (quizMode: "short" | "full") => {
-    setMode(quizMode);
-    setAnswers({});
-    setWeights({});
-    setIdx(0);
-    setShowDetail(false);
-    setScreen("quiz");
-  };
-
   const triggerToast = (msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(""), 3000);
   };
 
   const handleShare = async () => {
-    const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
-    const leader = sorted[0];
-    const leaderParty = PARTIES.find(p => p.code === leader[0]);
-    const leaderName = leaderParty?.name[lang] || leaderParty?.name["ru"] || "";
-    const text = `${t("title")}\n${t("archetypeLabel")}: ${arch.name[lang]}\n${t("scoreText")} ${leaderParty?.emoji} ${leaderName} (${leader[1]}%)`;
+    const leaderEntry = Object.entries(scores).sort((a, b) => b[1] - a[1])[0];
+    const leaderParty = PARTIES.find(p => p.code === leaderEntry[0]);
+    const partyName = leaderParty ? leaderParty.name[lang] : "";
+    const archName = arch.name[lang] || arch.name["ru"];
+    const text = `${t("resultsTitle")}: ${archName}\n${t("tabMatch")}: ${partyName} (${leaderEntry[1]}%)\nhttps://moyvibor2026.vercel.app/`;
 
     try {
       if (navigator.clipboard && window.isSecureContext) {
@@ -1500,392 +1128,391 @@ export default function App() {
         document.body.appendChild(textArea);
         textArea.focus();
         textArea.select();
-        document.execCommand("copy");
+        document.execCommand('copy');
         document.body.removeChild(textArea);
         triggerToast(t("toastCopied"));
       }
-    } catch {
+    } catch (err) {
       triggerToast(t("toastError"));
     }
   };
 
-  // Pure Canvas-based Image Exporter (Doesn't use html2canvas - 100% stable in Vercel build)
-  const downloadImage = () => {
+  const handleDownload = () => {
+    triggerToast(t("toastDownload"));
     setExporting(true);
-    try {
-      const canvas = document.createElement("canvas");
-      canvas.width = 600;
-      canvas.height = 760;
+
+    setTimeout(() => {
+      const canvas = canvasRef.current;
+      if (!canvas) {
+        setExporting(false);
+        return;
+      }
+
       const ctx = canvas.getContext("2d");
-      if (!ctx) throw new Error("Canvas context is not available");
+      if (!ctx) {
+        setExporting(false);
+        return;
+      }
 
-      // Draw Gradient Background
-      const bgGrad = ctx.createLinearGradient(0, 0, 0, 760);
-      bgGrad.addColorStop(0, "#090d16");
-      bgGrad.addColorStop(1, "#0a0f1d");
-      ctx.fillStyle = bgGrad;
-      ctx.fillRect(0, 0, 600, 760);
+      // Background Gradient
+      const grad = ctx.createLinearGradient(0, 0, 0, 800);
+      grad.addColorStop(0, "#090d16");
+      grad.addColorStop(1, "#0f172a");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 600, 800);
 
-      // Inner Border
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(15, 15, 570, 730);
+      // Frame Border decoration
+      ctx.strokeStyle = "rgba(99, 102, 241, 0.4)";
+      ctx.lineWidth = 10;
+      ctx.strokeRect(20, 20, 560, 760);
 
-      // Header Brand
-      ctx.fillStyle = "#818cf8";
-      ctx.font = "bold 13px sans-serif";
+      // Title
+      ctx.fillStyle = "#a5b4fc";
+      ctx.font = "bold 16px 'Inter', sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText(t("stateDuma2026").toUpperCase(), 300, 50);
-
-      // Label
-      ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
-      ctx.font = "bold 10px sans-serif";
-      ctx.fillText(t("archetypeLabel").toUpperCase(), 300, 85);
+      ctx.fillText(t("title").toUpperCase(), 300, 70);
 
       // Archetype Name
       ctx.fillStyle = "#ffffff";
-      ctx.font = "bold 26px serif";
-      ctx.fillText(arch.name[lang] || arch.name["ru"], 300, 120);
+      ctx.font = "bold 32px 'Playfair Display', serif";
+      const archNameStr = arch.name[lang] || arch.name["ru"];
+      ctx.fillText(archNameStr, 300, 120);
 
-      // Archetype Description (Wrapped Text)
+      // Archetype description
       ctx.fillStyle = "#9ca3af";
-      ctx.font = "14px sans-serif";
-      const descText = arch.desc[lang] || arch.desc["ru"];
-      wrapText(ctx, descText, 300, 160, 480, 22);
+      ctx.font = "14px 'Inter', sans-serif";
+      const archDescStr = arch.desc[lang] || arch.desc["ru"] || "";
+      wrapText(ctx, archDescStr, 300, 160, 480, 20);
 
-      // Divider
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.06)";
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(40, 250);
-      ctx.lineTo(560, 250);
-      ctx.stroke();
+      // Top aligned parties (Draw top 3)
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 16px 'Inter', sans-serif";
+      ctx.textAlign = "left";
+      ctx.fillText(t("tabMatch").toUpperCase(), 80, 260);
 
-      // Parties Match Title
-      ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
-      ctx.font = "bold 11px sans-serif";
-      ctx.fillText(t("tabParties").toUpperCase(), 300, 280);
-
-      // Draw Top 4 Parties with Progress Bars
-      const sortedParties = Object.entries(scores).sort((a, b) => b[1] - a[1]).slice(0, 4);
-      let startY = 320;
-
-      sortedParties.forEach(([code, val]) => {
+      const sortedParties = Object.entries(scores).sort((a, b) => b[1] - a[1]).slice(0, 3);
+      sortedParties.forEach(([code, val], index) => {
         const p = PARTIES.find(x => x.code === code);
         if (!p) return;
 
-        // Label and Emoji
-        ctx.textAlign = "left";
-        ctx.fillStyle = "#ffffff";
-        ctx.font = "bold 14px sans-serif";
-        ctx.fillText(`${p.emoji}  ${p.name[lang] || p.name["ru"]}`, 50, startY);
+        const yPos = 290 + index * 55;
 
-        // Score
+        // Emoji & Text
+        ctx.fillStyle = p.color;
+        ctx.font = "16px 'Inter', sans-serif";
+        ctx.fillText(`${p.emoji}  ${p.name[lang]}`, 80, yPos);
+
+        // Matching Percent
         ctx.textAlign = "right";
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 16px 'Inter', sans-serif";
+        ctx.fillText(`${val}%`, 520, yPos);
+
+        // Draw track
+        ctx.fillStyle = "rgba(0, 0, 0, 0.3)";
+        ctx.fillRect(80, yPos + 10, 440, 8);
         ctx.fillStyle = p.color;
-        ctx.font = "bold 14px sans-serif";
-        ctx.fillText(`${val}%`, 550, startY);
-
-        // Track
-        ctx.fillStyle = "rgba(0,0,0,0.4)";
-        ctx.fillRect(50, startY + 12, 500, 8);
-
-        // Fill
-        ctx.fillStyle = p.color;
-        ctx.fillRect(50, startY + 12, (val / 100) * 500, 8);
-
-        startY += 55;
+        ctx.fillRect(80, yPos + 10, (440 * val) / 100, 8);
+        ctx.textAlign = "left";
       });
 
-      // Footer
-      ctx.textAlign = "center";
-      ctx.fillStyle = "rgba(255, 255, 255, 0.15)";
-      ctx.font = "11px sans-serif";
-      ctx.fillText(`moyvibor2026.vercel.app  •  ${t("neutralDisclaimer")}`, 300, 715);
+      // Drawn scales (Draw top 3)
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "bold 16px 'Inter', sans-serif";
+      ctx.fillText(t("tabAxes").toUpperCase(), 80, 490);
 
-      // Trigger download
-      const link = document.createElement("a");
-      link.download = `political_compass_2026_${lang}.png`;
-      link.href = canvas.toDataURL("image/png");
-      link.click();
-      triggerToast(t("toastSaved"));
-    } catch {
-      triggerToast(t("toastError"));
-    } finally {
+      axesScores.slice(0, 3).forEach((ax, index) => {
+        const yPos = 520 + index * 60;
+
+        ctx.fillStyle = "#9ca3af";
+        ctx.font = "11px 'Inter', sans-serif";
+        ctx.fillText(ax.label, 80, yPos);
+
+        ctx.textAlign = "right";
+        ctx.fillText(ax.opposite, 520, yPos);
+
+        // Track and marker
+        ctx.fillStyle = "rgba(0,0,0,0.3)";
+        ctx.fillRect(80, yPos + 10, 440, 6);
+
+        // Marker position
+        const markerX = 80 + (440 * ax.score) / 100;
+        ctx.fillStyle = "#818cf8";
+        ctx.beginPath();
+        ctx.arc(markerX, yPos + 13, 8, 0, 2 * Math.PI);
+        ctx.fill();
+
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "10px 'Inter', sans-serif";
+        ctx.textAlign = "left";
+        ctx.fillText(`${100 - ax.score}%`, 80, yPos + 32);
+
+        ctx.textAlign = "right";
+        ctx.fillText(`${ax.score}%`, 520, yPos + 32);
+        ctx.textAlign = "left";
+      });
+
+      // Bottom disclaimer stamp
+      ctx.fillStyle = "rgba(255, 255, 255, 0.15)";
+      ctx.font = "10px 'Inter', sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("moyvibor2026.vercel.app  •  Duma Elections 2026 Simulator", 300, 740);
+
+      try {
+        const link = document.createElement("a");
+        link.download = `duma_compass_${lang}.png`;
+        link.href = canvas.toDataURL("image/png");
+        link.click();
+      } catch (err) {
+        triggerToast("Failed to download image.");
+      }
+
       setExporting(false);
-    }
+    }, 1000);
   };
 
-  const renderLangSelector = () => (
-    <div className="lang-selector">
-      {(["ru", "en", "be", "tt", "ba", "cv"] as Lang[]).map(l => (
-        <button
-          key={l}
-          className={`lang-btn ${lang === l ? "active" : ""}`}
-          onClick={() => setLang(l)}
-        >
-          {l === "ru" ? "RU" : l === "en" ? "EN" : l === "be" ? "БЕЛ" : l === "tt" ? "ТАТ" : l === "ba" ? "БАШ" : "ЧУВ"}
-        </button>
-      ))}
-    </div>
-  );
+  return (
+    <div className="app">
+      <style>{css}</style>
 
-  if (screen === "home") {
-    return (
-      <div className="app">
-        <style>{css}</style>
-        {renderLangSelector()}
-        <header className="hero">
+      {/* Embedded hidden canvas for background exporter */}
+      <canvas ref={canvasRef} width={600} height={800} style={{ display: "none" }} />
+
+      <header className="custom-nav">
+        <button 
+          className="lang-select" 
+          style={{ background: "transparent", color: "var(--muted)", border: "none", cursor: "pointer", fontSize: "20px" }}
+          onClick={() => handleRestart(false)}
+        >
+          🗳️
+        </button>
+
+        <select 
+          className="lang-select" 
+          value={lang} 
+          onChange={(e) => setLang(e.target.value as Lang)}
+        >
+          <option value="ru">Русский (RU)</option>
+          <option value="en">English (EN)</option>
+          <option value="be">Беларуская (BE)</option>
+          <option value="tt">Татарча (TT)</option>
+          <option value="ba">Башҡортса (BA)</option>
+          <option value="cv">Чăвашла (CV)</option>
+        </select>
+      </header>
+
+      {/* SCREEN 1: Welcome Home Screen */}
+      {screen === "home" && (
+        <>
           <h1>{t("title")}</h1>
           <p className="subtitle">{t("subtitle")}</p>
-          <p className="intro-text">{t("intro")}</p>
-        </header>
 
-        <div className="glass-card menu-option" onClick={() => startQuiz("short")}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ textAlign: "left" }}>
-              <h2 style={{ fontSize: "20px", marginBottom: "6px", color: "#f3f4f6" }}>{t("shortTest")}</h2>
-              <p style={{ color: "var(--muted)", fontSize: "14px" }}>{t("shortDesc")}</p>
-            </div>
-            <span style={{ fontSize: "12px", background: "#312e81", color: "#a5b4fc", padding: "6px 12px", borderRadius: "20px", fontWeight: "700" }}>~ 3 min</span>
-          </div>
-        </div>
-
-        <div className="glass-card menu-option" onClick={() => startQuiz("full")}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ textAlign: "left" }}>
-              <h2 style={{ fontSize: "20px", marginBottom: "6px", color: "#f3f4f6" }}>{t("fullTest")}</h2>
-              <p style={{ color: "var(--muted)", fontSize: "14px" }}>{t("fullDesc")}</p>
-            </div>
-            <span style={{ fontSize: "12px", background: "#065f46", color: "#34d399", padding: "6px 12px", borderRadius: "20px", fontWeight: "700" }}>~ 15 min</span>
-          </div>
-        </div>
-
-        <div className="glass-card menu-option" onClick={() => setScreen("glossary")}>
-          <h2 style={{ fontSize: "18px", marginBottom: "6px", color: "#f3f4f6", display: "flex", alignItems: "center", gap: "8px", textAlign: "left" }}>
-            {t("glossary")}
-          </h2>
-          <p style={{ color: "var(--muted)", fontSize: "14px", textAlign: "left" }}>{t("glossaryDesc")}</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (screen === "glossary") {
-    return (
-      <div className="app">
-        <style>{css}</style>
-        {renderLangSelector()}
-        <header style={{ marginBottom: "32px", textAlign: "left" }}>
-          <h1 style={{ fontSize: "36px", textAlign: "left" }}>{t("glossary")}</h1>
-          <p style={{ color: "var(--muted)" }}>{t("glossaryDesc")}</p>
-        </header>
-
-        <div className="party-list">
-          {PARTIES.map(p => (
-            <div key={p.code} className="glass-card" style={{ marginBottom: "16px", textAlign: "left" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "16px" }}>
-                <PartyLogo party={p} size="large" />
-                <div>
-                  <h3 style={{ fontSize: "20px", fontWeight: "700", color: "#ffffff", marginBottom: "4px" }}>
-                    {p.name[lang] || p.name["ru"]}
-                  </h3>
-                  <span style={{ fontSize: "13px", color: "var(--muted)" }}>
-                    {t("leader")}: {p.leader[lang] || p.leader["ru"]}
-                  </span>
-                </div>
+          <div className="glass-card menu-option" onClick={() => startQuiz("short")}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <h2 style={{ fontSize: "20px", marginBottom: "6px", color: "#f3f4f6" }}>{t("startShort")}</h2>
+                <p style={{ color: "var(--muted)", fontSize: "14px" }}>{t("startShortDesc")}</p>
               </div>
-              <p style={{ fontSize: "14px", color: "#cbd5e1", lineHeight: "1.5" }}>
-                {p.descr[lang] || p.descr["ru"]}
-              </p>
+              <span style={{ fontSize: "12px", background: "#312e81", color: "#a5b4fc", padding: "6px 12px", borderRadius: "20px", fontWeight: "700" }}>~ 3 min</span>
             </div>
-          ))}
-        </div>
-
-        <button className="btn btn-back" style={{ marginTop: "24px" }} onClick={() => setScreen("home")}>
-          {t("back")}
-        </button>
-      </div>
-    );
-  }
-
-  if (screen === "quiz") {
-    const progressPercent = Math.round((idx / qs.length) * 100);
-
-    return (
-      <div className="app">
-        <style>{css}</style>
-        
-        <div className="indicator-track">
-          <div className="indicator-fill" style={{ width: `${progressPercent}%` }} />
-        </div>
-
-        <div className="glass-card">
-          <div className="q-meta">
-            <span>{SECTIONS_LOC[current.sec]?.[lang] || SECTIONS_LOC[current.sec]?.["ru"]}</span>
-            <span>{idx + 1} / {qs.length}</span>
           </div>
-          
-          <h2 className="q-text">{current.text[lang] || current.text["ru"]}</h2>
 
-          <button className="detail-toggle" onClick={() => setShowDetail(!showDetail)}>
-            <span>{showDetail ? t("contextHide") : t("contextShow")}</span>
-          </button>
-
-          {showDetail && (
-            <div className="detail-pane">
-              {current.detail[lang] || current.detail["ru"]}
+          <div className="glass-card menu-option" onClick={() => startQuiz("full")}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <h2 style={{ fontSize: "20px", marginBottom: "6px", color: "#f3f4f6" }}>{t("startFull")}</h2>
+                <p style={{ color: "var(--muted)", fontSize: "14px" }}>{t("startFullDesc")}</p>
+              </div>
+              <span style={{ fontSize: "12px", background: "#065f46", color: "#34d399", padding: "6px 12px", borderRadius: "20px", fontWeight: "700" }}>{t("startFullBadge")}</span>
             </div>
-          )}
+          </div>
 
-          <div className="scale">
-            {[1, 2, 3, 4, 5].map(v => {
-              const labelKey = v === 1 ? "ag" : v === 2 ? "sag" : v === 3 ? "neu" : v === 4 ? "sad" : "ad";
-              return (
+          <div className="glass-card menu-option" onClick={() => setScreen("glossary")}>
+            <h2 style={{ fontSize: "18px", marginBottom: "6px", color: "#f3f4f6" }}>{t("glossaryBtn")}</h2>
+            <p style={{ color: "var(--muted)", fontSize: "14px" }}>{t("glossaryDesc")}</p>
+          </div>
+
+          <p className="disclaimer" style={{ textStyle: "italic", fontSize: "11px", color: "var(--muted)", textAlign: "center" }}>{t("disclaimer")}</p>
+        </>
+      )}
+
+      {/* SCREEN 2: Candidate Directory (Glossary) */}
+      {screen === "glossary" && (
+        <>
+          <header style={{ marginBottom: "32px" }}>
+            <h1 style={{ fontSize: "36px", textAlign: "left" }}>{t("glossaryTitle")}</h1>
+            <p style={{ color: "var(--muted)" }}>{t("glossaryDesc")}</p>
+          </header>
+
+          <div className="party-list">
+            {PARTIES.map(p => (
+              <div key={p.code} className="glass-card" style={{ borderLeft: `6px solid ${p.color}`, marginBottom: "16px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "16px" }}>
+                  <PartyLogo party={p} size="large" />
+                  <div>
+                    <h3 style={{ fontSize: "20px", fontWeight: "700", color: "#ffffff", marginBottom: "4px" }}>{p.name[lang] || p.name["ru"]}</h3>
+                    <span style={{ fontSize: "13px", color: "var(--muted)" }}>{t("leaderLabel")}{p.leader[lang] || p.leader["ru"]}</span>
+                  </div>
+                </div>
+                <p style={{ fontSize: "14px", color: "#cbd5e1", lineHeight: "1.5" }}>{p.descr[lang] || p.descr["ru"]}</p>
+              </div>
+            ))}
+          </div>
+
+          <button className="btn btn-back" style={{ marginTop: "24px" }} onClick={() => setScreen("home")}>{t("backBtn")}</button>
+        </>
+      )}
+
+      {/* SCREEN 3: Core Interactive Quiz */}
+      {screen === "quiz" && (
+        <>
+          <div className="indicator-track">
+            <div className="indicator-fill" style={{ width: `${Math.round(((idx) / qs.length) * 100)}%` }} />
+          </div>
+
+          <div className="glass-card">
+            <div className="q-meta">
+              <span>{t(`sec_${current.sec}`)}</span>
+              <span>{idx + 1} / {qs.length}</span>
+            </div>
+            
+            <h2 className="q-text">{getQText(current.n).t}</h2>
+
+            <button className="detail-toggle" onClick={() => setShowDetail(!showDetail)}>
+              <span>{showDetail ? t("contextHide") : t("contextShow")}</span>
+            </button>
+
+            {showDetail && (
+              <div className="detail-pane">
+                <p style={{ fontWeight: 600, color: "#fff", marginBottom: "6px" }}>{t("contextTitle")}:</p>
+                {getQText(current.n).d}
+              </div>
+            )}
+
+            <div className="scale">
+              {[1, 2, 3, 4, 5].map(v => (
                 <button 
                   key={v} 
                   className={`scale-btn ${answers[current.n] === v ? "active" : ""}`} 
                   onClick={() => setAnswers({ ...answers, [current.n]: v })}
                 >
                   <div className="point-indicator" />
-                  <span>{t(labelKey)}</span>
+                  <span>{SCALE_LABELS[v]?.[lang] || SCALE_LABELS[v]?.["ru"]}</span>
                 </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="nav">
-          <button className="btn btn-back" onClick={() => idx > 0 ? setIdx(idx - 1) : handleRestart(false)}>
-            {t("back")}
-          </button>
-          <button className="btn btn-back" style={{ color: "#f87171" }} onClick={() => setAnswers({ ...answers, [current.n]: 3 })}>
-            {t("skip")}
-          </button>
-          <button className="btn btn-next" disabled={!answers[current.n]} onClick={handleNext}>
-            {idx === qs.length - 1 ? t("finish") : t("next")}
-          </button>
-        </div>
-
-        {confirmModal.show && (
-          <div className="modal-overlay">
-            <div className="modal-box">
-              <h3 className="modal-title">{t("modalTitle")}</h3>
-              <p className="modal-text">{t("modalText")}</p>
-              <div className="modal-actions">
-                <button className="btn btn-back" style={{ flex: 1 }} onClick={() => setConfirmModal({ show: false, nextScreen: "" })}>
-                  {t("modalCancel")}
-                </button>
-                <button className="btn" style={{ flex: 1, background: "#ef4444", color: "#ffffff" }} onClick={() => handleRestart(true)}>
-                  {t("modalConfirm")}
-                </button>
-              </div>
+              ))}
             </div>
           </div>
-        )}
-      </div>
-    );
-  }
 
-  // SCREEN === "RESULTS"
-  return (
-    <div className="app">
-      <style>{css}</style>
-      {renderLangSelector()}
-      
-      <div className="glass-card" style={{ borderBottom: "4px solid #6366f1", textAlign: "center" }}>
-        <div className="arch-label">{t("archetypeLabel")}</div>
-        <h1 className="arch-name">{arch.name[lang] || arch.name["ru"]}</h1>
-        <p className="arch-desc">{arch.desc[lang] || arch.desc["ru"]}</p>
-      </div>
+          <div className="nav">
+            <button className="btn btn-back" onClick={handleBack}>{t("backBtn")}</button>
+            <button className="btn btn-next" style={{ display: answers[current.n] ? "inline-flex" : "none" }} onClick={handleNext}>{t("nextBtn")}</button>
+            <button className="btn btn-back" style={{ display: !answers[current.n] ? "inline-flex" : "none" }} onClick={() => setAnswers({ ...answers, [current.n]: 3 })}>{t("skipBtn")}</button>
+          </div>
 
-      <div className="tabs">
-        <button className={`tab-btn ${tab === "parties" ? "active" : ""}`} onClick={() => setTab("parties")}>
-          {t("tabParties")}
-        </button>
-        <button className={`tab-btn ${tab === "axes" ? "active" : ""}`} onClick={() => setTab("axes")}>
-          {t("tabAxes")}
-        </button>
-      </div>
-
-      {tab === "parties" && (
-        <div className="party-list">
-          {Object.entries(scores).sort((a, b) => b[1] - a[1]).map(([code, val]) => {
-            const p = PARTIES.find(x => x.code === code);
-            if (!p) return null;
-            return (
-              <div key={code} className="party-item" style={{ borderLeft: `4px solid ${p.color}`, textAlign: "left" }}>
-                <div className="party-head">
-                  <span style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                    <PartyLogo party={p} size="small" />
-                    <span style={{ color: "#ffffff", fontWeight: "600" }}>{p.name[lang] || p.name["ru"]}</span>
-                  </span>
-                  <span style={{ color: p.color, fontWeight: "700" }}>{val}%</span>
+          {confirmModal.show && (
+            <div className="modal-overlay">
+              <div className="modal-box">
+                <h3 className="modal-title">{t("modalResetTitle")}</h3>
+                <p className="modal-text">{t("modalResetText")}</p>
+                <div className="modal-actions">
+                  <button className="btn btn-back" style={{ flex: 1 }} onClick={() => setConfirmModal({ show: false, nextScreen: "" })}>{t("modalCancel")}</button>
+                  <button className="btn" style={{ flex: 1, background: "#ef4444", color: "#ffffff" }} onClick={() => handleRestart(true)}>{t("modalConfirm")}</button>
                 </div>
-                <div className="p-bar-bg">
-                  <div className="p-bar-fill" style={{ width: `${val}%`, background: p.color }} />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {tab === "axes" && (
-        <div className="glass-card">
-          <p style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "24px", lineHeight: "1.5", textAlign: "left" }}>
-            {t("axisDesc")}
-          </p>
-          {axesScores.map((ax, i) => (
-            <div key={i} className="axis-item">
-              <div className="axis-header">
-                <span>{ax.label}</span>
-                <span>{ax.opposite}</span>
-              </div>
-              <div className="axis-track">
-                <div className="axis-marker" style={{ left: `${ax.score}%` }} />
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "10px", color: "var(--muted)", marginTop: "4px" }}>
-                <span>{100 - ax.score}%</span>
-                <span>{ax.score}%</span>
               </div>
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
 
-      <div className="glass-card calibration-section">
-        <h2 className="calibration-title">{t("calibrationTitle")}</h2>
-        <p className="calibration-desc">{t("calibrationDesc")}</p>
+      {/* SCREEN 4: Deep Electoral Results */}
+      {screen === "results" && (
+        <>
+          <div className="glass-card" style={{ borderBottom: "4px solid #6366f1" }}>
+            <div className="arch-label">{t("resultsTitle")}</div>
+            <h1 className="arch-name">{arch.name[lang] || arch.name["ru"]}</h1>
+            <p className="arch-desc">{arch.desc[lang] || arch.desc["ru"]}</p>
+          </div>
 
-        <div>
-          {Object.keys(SECTIONS_LOC).map(secId => {
-            const v = weights[secId] || 1.0;
-            return (
-              <div key={secId} className="weight-row">
-                <span className="w-label">{SECTIONS_LOC[secId]?.[lang] || SECTIONS_LOC[secId]?.["ru"]}</span>
-                <div className="w-controls">
-                  <button className="w-btn" onClick={() => adjustW(secId, -0.5)}>—</button>
-                  <span className="w-val">{v.toFixed(1)}</span>
-                  <button className="w-btn" onClick={() => adjustW(secId, 0.5)}>+</button>
+          <div className="tabs">
+            <button className={`tab-btn ${tab === "parties" ? "active" : ""}`} onClick={() => setTab("parties")}>{t("tabMatch")}</button>
+            <button className={`tab-btn ${tab === "axes" ? "active" : ""}`} onClick={() => setTab("axes")}>{t("tabAxes")}</button>
+          </div>
+
+          {tab === "parties" && (
+            <div className="party-list">
+              {Object.entries(scores).sort((a, b) => b[1] - a[1]).map(([code, val]) => {
+                const p = PARTIES.find(x => x.code === code);
+                if (!p) return null;
+                return (
+                  <div key={code} className="party-item" style={{ borderLeft: `6px solid ${p.color}`, borderRight: `1px solid ${p.color}` }}>
+                    <div className="party-head">
+                      <span style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                        <PartyLogo party={p} size="small" />
+                        <span style={{ color: "#ffffff", fontWeight: "700" }}>{p.name[lang] || p.name["ru"]}</span>
+                      </span>
+                      <span style={{ color: p.color, fontWeight: "800", fontSize: "16px" }}>{val}%</span>
+                    </div>
+                    <div className="p-bar-bg">
+                      <div className="p-bar-fill" style={{ width: `${val}%`, background: p.color }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {tab === "axes" && (
+            <div className="glass-card">
+              {axesScores.map((ax, i) => (
+                <div key={i} className="axis-item">
+                  <div className="axis-header">
+                    <span>{ax.label}</span>
+                    <span>{ax.opposite}</span>
+                  </div>
+                  <div className="axis-track">
+                    <div className="axis-marker" style={{ left: `${ax.score}%` }} />
+                  </div>
+                  <div style={{ display: "flex", justifyStyle: "space-between", justifyContent: "space-between", fontSize: "10px", color: "var(--muted)", marginTop: "4px" }}>
+                    <span>{100 - ax.score}%</span>
+                    <span>{ax.score}%</span>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+              ))}
+            </div>
+          )}
 
-      <div className="nav">
-        <button className="btn btn-back" onClick={() => handleRestart(false)}>
-          {t("restart")}
-        </button>
-        <button className="btn btn-back" style={{ border: "1px solid #10b981", color: "#10b981" }} onClick={downloadImage} disabled={exporting}>
-          {exporting ? "..." : t("download")}
-        </button>
-        <button className="btn btn-next" onClick={handleShare}>
-          {t("share")} ↗
-        </button>
-      </div>
+          {/* Inline Interactive Weights Tuning */}
+          <div className="glass-card calibration-section">
+            <h2 className="calibration-title">{t("calibrationTitle")}</h2>
+            <p className="calibration-desc">{t("calibrationDesc")}</p>
+
+            <div>
+              {SECTIONS.map(s => {
+                const v = weights[s.id] !== undefined ? weights[s.id] : 1.0;
+                const localizedCategoryLabel = t(`sec_${s.id}`);
+                return (
+                  <div key={s.id} className="weight-row">
+                    <span className="w-label">{localizedCategoryLabel}</span>
+                    <div className="w-controls">
+                      <button className="w-btn" onClick={() => adjustW(s.id, -0.5)}>—</button>
+                      <span className="w-val">{v.toFixed(1)}</span>
+                      <button className="w-btn" onClick={() => adjustW(s.id, 0.5)}>+</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="nav">
+            <button className="btn btn-back" onClick={() => handleRestart(false)}>{t("homeBtn")}</button>
+            <button className="btn" style={{ background: "rgba(16, 185, 129, 0.15)", color: "#10b981", border: "1px solid #10b981" }} disabled={exporting} onClick={handleDownload}>
+              {exporting ? "..." : t("downloadBtn")}
+            </button>
+            <button className="btn btn-next" onClick={handleShare}>{t("shareBtn")}</button>
+          </div>
+        </>
+      )}
 
       {toast && <div className="toast">{toast}</div>}
     </div>
